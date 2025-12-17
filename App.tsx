@@ -4,7 +4,7 @@ import { Canvas, useFrame, ThreeElements } from '@react-three/fiber';
 import { OrbitControls, PerspectiveCamera, Environment, ContactShadows } from '@react-three/drei';
 import * as THREE from 'three';
 import { SphereData } from './types';
-import { ArrowUpDown, Play, Pause, Eye, Ghost } from 'lucide-react';
+import { ArrowUpDown } from 'lucide-react';
 
 // Properly augment the JSX namespace to include React Three Fiber elements.
 // This ensures that tags like <mesh>, <group>, <sphereGeometry>, etc., are recognized.
@@ -23,9 +23,29 @@ interface SceneConfig {
   maxDist: number;
   opacity: number;
   lut: Float32Array;
+  minScale: number;
+  maxScale: number;
+  tintColor: THREE.Color;
 }
 
 const clamp01 = (v: number) => Math.min(1, Math.max(0, v));
+
+const hsvToRgb = (h: number, s: number, v: number) => {
+  const i = Math.floor(h * 6);
+  const f = h * 6 - i;
+  const p = v * (1 - s);
+  const q = v * (1 - f * s);
+  const t = v * (1 - (1 - f) * s);
+  switch (i % 6) {
+    case 0: return { r: v, g: t, b: p };
+    case 1: return { r: q, g: v, b: p };
+    case 2: return { r: p, g: v, b: t };
+    case 3: return { r: p, g: q, b: v };
+    case 4: return { r: t, g: p, b: v };
+    case 5: return { r: v, g: p, b: q };
+    default: return { r: v, g: t, b: p };
+  }
+};
 
 const cubicBezierCoord = (t: number, p0: number, p1: number, p2: number, p3: number) => {
   const cx = 3 * (p1 - p0);
@@ -115,31 +135,42 @@ function generateInitialSpheres(spacing: number): SphereData[] {
   return spheres;
 }
 
+const BASE_WHITE = new THREE.Color('#ffffff');
+
 const Sphere: React.FC<{ 
   data: SphereData; 
   focalPointRef: React.RefObject<THREE.Vector3>;
   config: SceneConfig;
 }> = ({ data, focalPointRef, config }) => {
   const meshRef = useRef<THREE.Mesh>(null);
+  const materialRef = useRef<THREE.MeshStandardMaterial>(null);
 
   useFrame(() => {
-    if (!meshRef.current || !focalPointRef.current) return;
+    if (!meshRef.current || !focalPointRef.current || !materialRef.current) return;
 
-    const { maxDist, lut } = config;
+    const { maxDist, lut, minScale, maxScale, tintColor, opacity } = config;
     const spherePos = meshRef.current.position;
     const dist = spherePos.distanceTo(focalPointRef.current);
     
     const t = Math.min(1, dist / maxDist);
     const idx = Math.floor(t * (LUT_SIZE - 1));
-    const finalScale = lut[idx] || 0.1;
-
+    const finalScale = lut[idx] || minScale;
     meshRef.current.scale.setScalar(finalScale);
+
+    // Apply tint uniformly, independent of the scale falloff.
+    const curveFactor = 1;
+
+    // Tint color follows the same falloff curve as scale.
+    materialRef.current.color.copy(BASE_WHITE).lerp(tintColor, curveFactor);
+    materialRef.current.emissive.copy(BASE_WHITE).lerp(tintColor, curveFactor * 0.6);
+    materialRef.current.opacity = opacity;
   });
 
   return (
     <mesh ref={meshRef} position={data.position}>
       <sphereGeometry args={[1, 8, 8]} />
       <meshStandardMaterial 
+        ref={materialRef}
         color="#ffffff" 
         emissive="#ffffff" 
         emissiveIntensity={0.15} 
@@ -350,6 +381,91 @@ const BezierEditor: React.FC<{
   );
 };
 
+const ColorPicker: React.FC<{
+  hue: number;
+  saturation: number;
+  value: number;
+  onHueChange: (h: number) => void;
+  onSaturationValueChange: (s: number, v: number) => void;
+}> = ({ hue, saturation, value, onHueChange, onSaturationValueChange }) => {
+  const svRef = useRef<HTMLDivElement>(null);
+  const hueRef = useRef<HTMLDivElement>(null);
+
+  const updateSV = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!svRef.current) return;
+    const rect = svRef.current.getBoundingClientRect();
+    const sat = clamp01((e.clientX - rect.left) / rect.width);
+    const val = clamp01(1 - (e.clientY - rect.top) / rect.height);
+    onSaturationValueChange(sat, val);
+  };
+
+  const updateHue = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!hueRef.current) return;
+    const rect = hueRef.current.getBoundingClientRect();
+    const h = clamp01((e.clientX - rect.left) / rect.width) * 360;
+    onHueChange(h);
+  };
+
+  const svHandleStyle = {
+    left: `${saturation * 100}%`,
+    top: `${(1 - value) * 100}%`,
+  };
+
+  const hueHandleStyle = {
+    left: `${(hue / 360) * 100}%`,
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="flex justify-between items-center">
+        <label className="text-[10px] uppercase font-bold text-neutral-500 tracking-wider">Color</label>
+        <span className="text-[10px] font-mono text-indigo-400 bg-indigo-400/10 px-2 py-0.5 rounded border border-indigo-400/20">
+          {hue.toFixed(0)}° · {(saturation * 100).toFixed(0)}% · {(value * 100).toFixed(0)}%
+        </span>
+      </div>
+
+      <div
+        ref={svRef}
+        onPointerDown={(e) => { e.preventDefault(); updateSV(e); }}
+        onPointerMove={(e) => { if (e.buttons === 1) updateSV(e); }}
+        className="relative h-64 rounded-3xl overflow-hidden shadow-inner cursor-crosshair select-none"
+        style={{
+          backgroundImage: `
+            linear-gradient(0deg, #000, rgba(0,0,0,0)),
+            linear-gradient(90deg, #fff, hsl(${hue}deg, 100%, 50%))
+          `,
+        }}
+      >
+        <div
+          className="absolute w-6 h-6 rounded-full border-4 border-white shadow-lg -translate-x-1/2 -translate-y-1/2"
+          style={{
+            ...svHandleStyle,
+            background: 'radial-gradient(circle, #0f1014 45%, transparent 46%)',
+          }}
+        />
+      </div>
+
+      <div
+        ref={hueRef}
+        onPointerDown={(e) => { e.preventDefault(); updateHue(e); }}
+        onPointerMove={(e) => { if (e.buttons === 1) updateHue(e); }}
+        className="relative h-6 rounded-full overflow-hidden shadow-inner cursor-pointer select-none"
+        style={{
+          backgroundImage: 'linear-gradient(90deg, #ff0000, #ffff00, #00ff00, #00ffff, #0000ff, #ff00ff, #ff0000)',
+        }}
+      >
+        <div
+          className="absolute w-6 h-6 rounded-full border-4 border-white shadow-lg -translate-x-1/2 top-1/2 -translate-y-1/2"
+          style={{
+            ...hueHandleStyle,
+            background: 'radial-gradient(circle, #0f1014 45%, transparent 46%)',
+          }}
+        />
+      </div>
+    </div>
+  );
+};
+
 /**
  * Custom Dual-Handle Range Slider for Min/Max Scale
  */
@@ -374,7 +490,7 @@ const ScaleRangeSlider: React.FC<{
   return (
     <div className="mt-8 mb-6 px-1">
       <div className="flex justify-between items-center mb-5">
-        <label className="text-[10px] uppercase font-bold tracking-wider text-indigo-400">Dynamic Bounds</label>
+        <label className="text-[10px] uppercase font-bold tracking-wider text-neutral-500">Dynamic Bounds</label>
         <div className="text-[10px] font-mono bg-neutral-900/50 px-2 py-0.5 rounded border border-white/5 text-neutral-400">
           <span className="text-indigo-400">{minVal.toFixed(2)}x</span> <span className="mx-1 opacity-30">—</span> <span className="text-indigo-400">{maxVal.toFixed(2)}x</span>
         </div>
@@ -402,21 +518,29 @@ const ScaleRangeSlider: React.FC<{
 
 const App: React.FC = () => {
   const [baseSpheres, setBaseSpheres] = useState<SphereData[]>(() => generateInitialSpheres(INITIAL_SPACING));
-  const [opacity, setOpacity] = useState(0.25);
+  const [opacity, setOpacity] = useState(0.5);
   const [isReversed, setIsReversed] = useState(false);
   const [isDynamic, setIsDynamic] = useState(true);
-  const [speed, setSpeed] = useState(1.0);
+  const [speed, setSpeed] = useState(2.0);
   const [showFocalPoint, setShowFocalPoint] = useState(false);
 
   // Scale Range Bounds
   const [minScale, setMinScale] = useState(0.03);
   const [maxScale, setMaxScale] = useState(0.74);
+  const [hue, setHue] = useState(220); // degrees
+  const [saturation, setSaturation] = useState(0.75); // 0-1 (X axis)
+  const [value, setValue] = useState(0.65); // 0-1 (Y axis, brightness)
 
   // Bezier Controls
   const [p1x, setP1x] = useState(0.33);
   const [p1y, setP1y] = useState(0.8);
   const [p2x, setP2x] = useState(0.66);
   const [p2y, setP2y] = useState(0.2);
+
+  const tintColor = useMemo(() => {
+    const { r, g, b } = hsvToRgb(hue / 360, clamp01(saturation), clamp01(value));
+    return new THREE.Color(r, g, b);
+  }, [hue, saturation, value]);
 
   const focalPointRef = useRef(new THREE.Vector3(0, 0, 0));
 
@@ -429,7 +553,7 @@ const App: React.FC = () => {
     [p1x, p1y, p2x, p2y, isReversed, minScale, maxScale]
   );
 
-  const config: SceneConfig = { maxDist, opacity, lut };
+  const config: SceneConfig = { maxDist, opacity, lut, minScale, maxScale, tintColor };
 
   return (
     <div className="relative w-full h-full bg-neutral-950 text-white font-sans overflow-hidden">
@@ -452,41 +576,12 @@ const App: React.FC = () => {
         <ContactShadows position={[0, -GRID_SIZE * 0.8, 0]} opacity={0.4} scale={GRID_SIZE * 4} blur={2.8} far={GRID_SIZE * 2} />
         <Environment preset="night" />
       </Canvas>
-      {/* Title Overlay */}
-      <div className="absolute top-0 left-0 p-10 pointer-events-none w-full flex justify-between items-start z-10">
-        <div className="pointer-events-auto">
-          <h1 className="text-4xl font-bold tracking-tighter flex items-center gap-2">
-            SPHERE<span className="text-indigo-400">SCULPT</span>
-          </h1>
-          <p className="text-neutral-500 text-xs mt-2 max-w-xs font-mono uppercase tracking-widest opacity-80">
-            12³ Interactive Kinetic Matrix
-          </p>
-        </div>
-      </div>
       {/* Sidebar Controls */}
       <div className="absolute top-36 left-10 w-80 pointer-events-none flex flex-col gap-8 max-h-[calc(100vh-180px)] overflow-y-auto pr-3 scrollbar-hide z-10">
-        
-        {/* Kinetic Movement */}
+
+        {/* Sculpting Section */}
         <div className="pointer-events-auto bg-neutral-900/70 backdrop-blur-2xl border border-white/10 p-7 rounded-[2rem] shadow-2xl transition-all hover:border-white/20">
-          <div className="flex items-center justify-between mb-8">
-            <div className="text-indigo-400 text-xs font-bold uppercase tracking-widest">Kinetic Engine</div>
-            <div className="flex gap-2.5">
-              <button 
-                onClick={() => setShowFocalPoint(!showFocalPoint)}
-                className={`p-2 rounded-xl transition-all duration-300 ${showFocalPoint ? 'bg-indigo-500 text-white shadow-[0_0_15px_rgba(99,102,241,0.5)]' : 'bg-neutral-800 text-neutral-400 hover:text-white hover:bg-neutral-700'}`}
-                title="Toggle Focal Indicator"
-              >
-                <Eye size={16} />
-              </button>
-              <button 
-                onClick={() => setIsDynamic(!isDynamic)}
-                className={`p-2 rounded-xl transition-all duration-300 ${isDynamic ? 'bg-indigo-500 text-white shadow-[0_0_15px_rgba(99,102,241,0.5)]' : 'bg-neutral-800 text-neutral-400 hover:text-white hover:bg-neutral-700'}`}
-              >
-                {isDynamic ? <Pause size={16} /> : <Play size={16} />}
-              </button>
-            </div>
-          </div>
-          <div className="group space-y-4">
+          <div className="group space-y-4 mb-8">
             <div className="flex justify-between items-center">
               <label className="text-[10px] uppercase font-bold text-neutral-500 tracking-wider">Engine Velocity</label>
               <span className="text-[10px] font-mono text-indigo-400 bg-indigo-400/10 px-2 py-0.5 rounded border border-indigo-400/20">{speed.toFixed(1)}x</span>
@@ -497,20 +592,6 @@ const App: React.FC = () => {
               className="w-full h-2 bg-neutral-800 rounded-lg appearance-none cursor-pointer accent-indigo-500 disabled:opacity-30 transition-all"
               disabled={!isDynamic}
             />
-          </div>
-        </div>
-
-        {/* Sculpting Section */}
-        <div className="pointer-events-auto bg-neutral-900/70 backdrop-blur-2xl border border-white/10 p-7 rounded-[2rem] shadow-2xl transition-all hover:border-white/20">
-          <div className="flex items-center justify-between mb-4">
-            <div className="text-indigo-400 text-xs font-bold uppercase tracking-widest">Visual Sculptor</div>
-            <button 
-              onClick={() => setIsReversed(!isReversed)}
-              className={`p-2 rounded-xl transition-all duration-300 ${isReversed ? 'bg-indigo-500 text-white shadow-[0_0_15px_rgba(99,102,241,0.5)]' : 'bg-neutral-800 text-neutral-400 hover:text-white hover:bg-neutral-700'}`}
-              title="Reverse Falloff Direction"
-            >
-              <ArrowUpDown size={16} />
-            </button>
           </div>
 
           <ScaleRangeSlider 
@@ -528,12 +609,17 @@ const App: React.FC = () => {
           />
 
           <div className="space-y-8 mt-10">
+            <ColorPicker 
+              hue={hue}
+              saturation={saturation}
+              value={value}
+              onHueChange={setHue}
+              onSaturationValueChange={(s, v) => { setSaturation(s); setValue(v); }}
+            />
+
             <div className="group space-y-4">
               <div className="flex justify-between items-center">
-                <div className="flex items-center gap-2">
-                  <Ghost size={14} className="text-indigo-500" />
-                  <label className="text-[10px] uppercase font-bold text-neutral-500 tracking-wider">Atmospheric Density</label>
-                </div>
+                <label className="text-[10px] uppercase font-bold text-neutral-500 tracking-wider">Atmospheric Density</label>
                 <span className="text-[10px] font-mono text-indigo-400 bg-indigo-400/10 px-2 py-0.5 rounded border border-indigo-400/20">{opacity.toFixed(2)}</span>
               </div>
               <input 
