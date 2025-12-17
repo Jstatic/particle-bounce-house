@@ -1,0 +1,5 @@
+{
+  "name": "3D Matrix Sphere Sculptor",
+  "description": "An interactive 3D viewer featuring a matrix of spheres that can be transformed and styled using the power of Gemini AI.",
+  "requestFramePermissions": []
+}
