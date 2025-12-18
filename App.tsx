@@ -4,7 +4,7 @@ import { Canvas, useFrame, ThreeElements } from '@react-three/fiber';
 import { OrbitControls, PerspectiveCamera, Environment, ContactShadows } from '@react-three/drei';
 import * as THREE from 'three';
 import { SphereData } from './types';
-import { ArrowUpDown } from 'lucide-react';
+import { ArrowUpDown, Eye, EyeOff } from 'lucide-react';
 
 // Properly augment the JSX namespace to include React Three Fiber elements.
 // This ensures that tags like <mesh>, <group>, <sphereGeometry>, etc., are recognized.
@@ -526,7 +526,7 @@ const ColorPicker: React.FC<{
         ref={svRef}
         onPointerDown={(e) => { e.preventDefault(); updateSV(e); }}
         onPointerMove={(e) => { if (e.buttons === 1) updateSV(e); }}
-        className="relative h-64 rounded-3xl overflow-hidden shadow-inner cursor-crosshair select-none"
+        className="relative h-64 rounded-[1rem] overflow-hidden shadow-inner cursor-crosshair select-none"
         style={{
           backgroundImage: `
             linear-gradient(0deg, #000, rgba(0,0,0,0)),
@@ -536,10 +536,7 @@ const ColorPicker: React.FC<{
       >
         <div
           className="absolute w-6 h-6 rounded-full border-4 border-white shadow-lg -translate-x-1/2 -translate-y-1/2"
-          style={{
-            ...svHandleStyle,
-            background: 'radial-gradient(circle, #0f1014 45%, transparent 46%)',
-          }}
+          style={svHandleStyle}
         />
       </div>
 
@@ -554,10 +551,7 @@ const ColorPicker: React.FC<{
       >
         <div
           className="absolute w-6 h-6 rounded-full border-4 border-white shadow-lg -translate-x-1/2 top-1/2 -translate-y-1/2"
-          style={{
-            ...hueHandleStyle,
-            background: 'radial-gradient(circle, #0f1014 45%, transparent 46%)',
-          }}
+          style={hueHandleStyle}
         />
       </div>
     </div>
@@ -636,6 +630,7 @@ const App: React.FC = () => {
   const [engineCenters, setEngineCenters] = useState(1);
   const [engineRandomness, setEngineRandomness] = useState(0);
   const [ambientIntensity, setAmbientIntensity] = useState(0.5);
+  const [showUI, setShowUI] = useState(true);
 
   // Bezier Controls
   const [p1x, setP1x] = useState(0.33);
@@ -688,9 +683,15 @@ const App: React.FC = () => {
 
   return (
     <div className="relative w-full h-full bg-neutral-950 text-white font-sans overflow-hidden">
-      <Canvas shadows dpr={[1, 1.5]} style={{ transform: 'translateX(150px)' }}>
+      <Canvas className="w-full h-full" shadows dpr={[1, 1.5]} style={{ transform: 'translateX(100px)' }}>
         <PerspectiveCamera makeDefault position={[20, 20, 20]} />
-        <OrbitControls makeDefault autoRotate={!isDynamic} autoRotateSpeed={0.3} enableDamping />
+        <OrbitControls
+          makeDefault
+          target={[0, 0, 0]}
+          autoRotate={!isDynamic}
+          autoRotateSpeed={0.3}
+          enableDamping
+        />
         <ambientLight intensity={ambientIntensity} />
         <spotLight position={[20, 20, 20]} angle={0.2} penumbra={1} intensity={2} castShadow />
         <pointLight position={[-20, -20, -20]} intensity={0.5} />
@@ -711,89 +712,101 @@ const App: React.FC = () => {
         <Environment preset="night" />
       </Canvas>
       {/* Sidebar Controls */}
-      <div className="absolute top-0 left-0 h-screen w-80 pointer-events-none flex flex-col gap-8 overflow-y-auto pr-3 scrollbar-hide z-10">
-        
-        {/* Sculpting Section */}
-        <div className="pointer-events-auto bg-neutral-900/70 backdrop-blur-2xl border border-white/10 p-7 shadow-2xl transition-all hover:border-white/20 rounded-none h-full">
-          <div className="group space-y-4 mb-8">
-            <div className="flex justify-between items-center">
-              <label className="text-[10px] uppercase font-bold text-neutral-500 tracking-wider">Engine Velocity</label>
-              <span className="text-[10px] font-mono px-2 py-0.5 rounded border" style={{ color: accentColor, background: accentSoft, borderColor: accentBorder }}>{speed.toFixed(1)}x</span>
+      {showUI && (
+        <div
+          className="absolute top-0 left-0 h-screen w-80 pointer-events-auto flex flex-col gap-8 overflow-y-auto pr-3 scrollbar-hide z-10 bg-neutral-900/70 backdrop-blur-2xl"
+          style={{
+            scrollbarWidth: 'thin',
+            scrollbarColor: '#1f2937 transparent',
+            paddingBottom: '24px',
+          }}
+        >
+          
+          {/* Sculpting Section */}
+          <div className="pointer-events-auto p-7 shadow-2xl transition-all rounded-none h-full">
+            <div className="group space-y-4 mb-8">
+              <div className="flex justify-between items-center">
+                <label className="text-[10px] uppercase font-bold text-neutral-500 tracking-wider">Engine Velocity</label>
+                <span className="text-[10px] font-mono px-2 py-0.5 rounded border" style={{ color: accentColor, background: accentSoft, borderColor: accentBorder }}>{speed.toFixed(1)}x</span>
+              </div>
+              <input 
+                type="range" min="0.1" max="8.0" step="0.1" value={speed} 
+                onChange={(e) => setSpeed(parseFloat(e.target.value))}
+                className="w-full h-2 bg-neutral-800 rounded-lg appearance-none cursor-pointer disabled:opacity-30 transition-all"
+                style={{ accentColor }}
+                disabled={!isDynamic}
+              />
             </div>
-            <input 
-              type="range" min="0.1" max="8.0" step="0.1" value={speed} 
-              onChange={(e) => setSpeed(parseFloat(e.target.value))}
-              className="w-full h-2 bg-neutral-800 rounded-lg appearance-none cursor-pointer disabled:opacity-30 transition-all"
-              style={{ accentColor }}
-              disabled={!isDynamic}
-            />
-          </div>
 
-          <div className="group space-y-4 mb-8">
-            <div className="flex justify-between items-center">
-              <label className="text-[10px] uppercase font-bold text-neutral-500 tracking-wider">Engine Centers</label>
+            <div className="group space-y-4 mb-8">
+              <div className="flex justify-between items-center">
+                <label className="text-[10px] uppercase font-bold text-neutral-500 tracking-wider">Engine Centers</label>
+              </div>
+              <div className="flex gap-2">
+                {[1, 2, 3].map(val => (
+                  <button
+                    key={val}
+                    onClick={() => setEngineCenters(val)}
+                    className="flex-1 py-2 text-[11px] font-bold uppercase tracking-wider rounded-lg border transition-all bg-neutral-800 text-neutral-400 border-white/10 hover:text-white hover:border-white/30"
+                    style={engineCenters === val ? { background: accentColor, color: '#fff', borderColor: accentBorder, boxShadow: accentShadow } : undefined}
+                  >
+                    {val}
+                  </button>
+                ))}
+              </div>
             </div>
-            <div className="flex gap-2">
-              {[1, 2, 3].map(val => (
-                <button
-                  key={val}
-                  onClick={() => setEngineCenters(val)}
-                  className="flex-1 py-2 text-[11px] font-bold uppercase tracking-wider rounded-lg border transition-all bg-neutral-800 text-neutral-400 border-white/10 hover:text-white hover:border-white/30"
-                  style={engineCenters === val ? { background: accentColor, color: '#fff', borderColor: accentBorder, boxShadow: accentShadow } : undefined}
-                >
-                  {val}
-                </button>
-              ))}
+
+            <div className="group space-y-4 mb-8">
+              <div className="flex justify-between items-center">
+                <label className="text-[10px] uppercase font-bold text-neutral-500 tracking-wider">Engine Randomness</label>
+                <span className="text-[10px] font-mono px-2 py-0.5 rounded border" style={{ color: accentColor, background: accentSoft, borderColor: accentBorder }}>{engineRandomness.toFixed(0)}%</span>
+              </div>
+              <input 
+                type="range" min="0" max="100" step="1" value={engineRandomness} 
+                onChange={(e) => setEngineRandomness(parseInt(e.target.value, 10))}
+                className="w-full h-2 bg-neutral-800 rounded-lg appearance-none cursor-pointer disabled:opacity-30 transition-all"
+                style={{ accentColor }}
+              />
             </div>
-          </div>
 
-          <div className="group space-y-4 mb-8">
-            <div className="flex justify-between items-center">
-              <label className="text-[10px] uppercase font-bold text-neutral-500 tracking-wider">Engine Randomness</label>
-              <span className="text-[10px] font-mono px-2 py-0.5 rounded border" style={{ color: accentColor, background: accentSoft, borderColor: accentBorder }}>{engineRandomness.toFixed(0)}%</span>
-            </div>
-            <input 
-              type="range" min="0" max="100" step="1" value={engineRandomness} 
-              onChange={(e) => setEngineRandomness(parseInt(e.target.value, 10))}
-              className="w-full h-2 bg-neutral-800 rounded-lg appearance-none cursor-pointer disabled:opacity-30 transition-all"
-              style={{ accentColor }}
-            />
-          </div>
-
-          <ScaleRangeSlider 
-            min={0.01} max={2.0} 
-            minVal={minScale} maxVal={maxScale} 
-            onChange={(mi, ma) => { setMinScale(mi); setMaxScale(ma); }} 
-            accentColor={accentColor}
-            accentShadow={accentShadow}
-          />
-
-          <BezierEditor 
-            p1x={p1x} p1y={p1y} p2x={p2x} p2y={p2y} 
-            onChange={(x1, y1, x2, y2) => { setP1x(x1); setP1y(y1); setP2x(x2); setP2y(y2); }} 
-            isReversed={isReversed} 
-            minScale={minScale}
-            maxScale={maxScale}
-            accentColor={accentColor}
-            accentBorder={accentBorder}
-          />
-
-          <div className="space-y-8 mt-10">
-            <ColorPicker 
-              hue={hue}
-              saturation={saturation}
-              value={value}
-              onHueChange={setHue}
-              onSaturationValueChange={(s, v) => { setSaturation(s); setValue(v); }}
+            <ScaleRangeSlider 
+              min={0.01} max={2.0} 
+              minVal={minScale} maxVal={maxScale} 
+              onChange={(mi, ma) => { setMinScale(mi); setMaxScale(ma); }} 
               accentColor={accentColor}
-              accentSoft={accentSoft}
+              accentShadow={accentShadow}
+            />
+
+            <BezierEditor 
+              p1x={p1x} p1y={p1y} p2x={p2x} p2y={p2y} 
+              onChange={(x1, y1, x2, y2) => { setP1x(x1); setP1y(y1); setP2x(x2); setP2y(y2); }} 
+              isReversed={isReversed} 
+              minScale={minScale}
+              maxScale={maxScale}
+              accentColor={accentColor}
               accentBorder={accentBorder}
             />
+
+            <div className="space-y-8 mt-10">
+              <div className="pb-6">
+                <ColorPicker 
+                  hue={hue}
+                  saturation={saturation}
+                  value={value}
+                  onHueChange={setHue}
+                  onSaturationValueChange={(s, v) => { setSaturation(s); setValue(v); }}
+                  accentColor={accentColor}
+                  accentSoft={accentSoft}
+                  accentBorder={accentBorder}
+                />
+              </div>
+            </div>
           </div>
         </div>
-      </div>
+      )}
 
       {/* Ambient Light Control */}
+      {showUI && (
       <div className="absolute top-4 right-4 pointer-events-auto z-10 bg-neutral-900/80 border border-white/10 rounded-xl px-4 py-4 shadow-2xl backdrop-blur space-y-4 w-72">
         <div className="space-y-3">
           <div className="flex items-center justify-between gap-4">
@@ -844,14 +857,25 @@ const App: React.FC = () => {
           />
         </div>
       </div>
+      )}
 
-      <div className="absolute bottom-10 right-10 text-right hidden lg:block pointer-events-none z-10 opacity-40 group hover:opacity-100 transition-opacity duration-500">
+      {showUI && (
+      <div className="absolute bottom-20 right-5 text-right hidden lg:block pointer-events-none z-10 opacity-40 group hover:opacity-100 transition-opacity duration-500">
         <div className="text-[10px] text-neutral-400 font-mono tracking-widest space-y-1">
-          <p className="font-bold" style={{ color: accentColor }}>CORE: REACT-THREE-FIBER</p>
-          <p>LOGIC: DUAL-BOUND CUBIC BEZIER</p>
-          <p>RENDER: SPATIAL LUT SAMPLING</p>
+          <p className="font-bold" style={{ color: accentColor }}>PARTICLE BOUNCE HOUSE</p>
+          <p>JOHN LEONARD 2025</p>
         </div>
       </div>
+      )}
+
+      {/* UI Visibility Toggle */}
+      <button
+        onClick={() => setShowUI(!showUI)}
+        className="absolute bottom-5 right-4 z-20 w-10 h-10 flex items-center justify-center rounded-lg border border-white/10 bg-neutral-900/80 text-white shadow-2xl backdrop-blur transition hover:border-white/30 hover:bg-neutral-800"
+        title={showUI ? "Hide UI" : "Show UI"}
+      >
+        {showUI ? <EyeOff size={18} /> : <Eye size={18} />}
+      </button>
     </div>
   );
 };
