@@ -310,7 +310,7 @@ const SceneContent: React.FC<{
       weightRef.current[i] = THREE.MathUtils.lerp(current, target, 1 - Math.exp(-delta * 6));
     }
 
-    const bound = (GRID_SIZE * INITIAL_SPACING) / 2 * 1.2;
+    const bound = (GRID_SIZE * INITIAL_SPACING) / 2 * 2;
     const t = timeRef.current;
     const freq = 0.2;
     const randNorm = engineRandomness / 100;
