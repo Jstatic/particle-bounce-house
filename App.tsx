@@ -246,7 +246,8 @@ const SceneContent: React.FC<{
   config: SceneConfig;
   focalPointsRef: React.RefObject<THREE.Vector3[]>;
   showFocalPoint: boolean;
-}> = ({ isDynamic, speed, engineCenters, engineRandomness, sphereSegments, baseSpheres, config, focalPointsRef, showFocalPoint }) => {
+  boundScale: number;
+}> = ({ isDynamic, speed, engineCenters, engineRandomness, sphereSegments, baseSpheres, config, focalPointsRef, showFocalPoint, boundScale }) => {
   const phaseRef = useRef<{ px: number; py: number; pz: number; amp: THREE.Vector3; freq: THREE.Vector3 }[]>([]);
   const weightRef = useRef<number[]>([]);
   const weightTargetRef = useRef<number[]>([]);
@@ -277,7 +278,7 @@ const SceneContent: React.FC<{
       phaseRef.current.pop();
     }
     while (focalPointsRef.current.length < MAX_ENGINE_CENTERS) {
-      const bound = (GRID_SIZE * INITIAL_SPACING) / 2;
+      const bound = (GRID_SIZE * INITIAL_SPACING) / 2 * boundScale;
       focalPointsRef.current.push(
         new THREE.Vector3(
           (Math.random() - 0.5) * bound,
@@ -296,7 +297,7 @@ const SceneContent: React.FC<{
     for (let i = 0; i < MAX_ENGINE_CENTERS; i++) {
       weightTargetRef.current[i] = i < engineCenters ? 1 : 0;
     }
-  }, [engineCenters]);
+  }, [engineCenters, boundScale]);
 
   useFrame((state, delta) => {
     if (!isDynamic || !focalPointsRef.current) return;
@@ -310,7 +311,8 @@ const SceneContent: React.FC<{
       weightRef.current[i] = THREE.MathUtils.lerp(current, target, 1 - Math.exp(-delta * 6));
     }
 
-    const bound = (GRID_SIZE * INITIAL_SPACING) / 2 * 2;
+    const baseBound = (GRID_SIZE * INITIAL_SPACING) / 2;
+    const bound = baseBound * boundScale;
     const t = timeRef.current;
     const freq = 0.2;
     const randNorm = engineRandomness / 100;
@@ -584,7 +586,7 @@ const ScaleRangeSlider: React.FC<{
   return (
     <div className="mt-8 mb-6 px-1">
       <div className="flex justify-between items-center mb-5">
-        <label className="text-[10px] uppercase font-bold tracking-wider text-neutral-500">Dynamic Bounds</label>
+        <label className="text-[10px] uppercase font-bold tracking-wider text-neutral-500">Sphere Size</label>
           <div className="text-[10px] font-mono bg-neutral-900/50 px-2 py-0.5 rounded border border-white/5 text-neutral-400">
           <span style={{ color: accentColor }}>{minVal.toFixed(2)}x</span> <span className="mx-1 opacity-30">—</span> <span style={{ color: accentColor }}>{maxVal.toFixed(2)}x</span>
         </div>
@@ -629,6 +631,7 @@ const App: React.FC = () => {
   const [sphereSegments, setSphereSegments] = useState(16);
   const [engineCenters, setEngineCenters] = useState(1);
   const [engineRandomness, setEngineRandomness] = useState(0);
+  const [boundScale, setBoundScale] = useState(2);
   const [ambientIntensity, setAmbientIntensity] = useState(0.5);
   const [showUI, setShowUI] = useState(true);
 
@@ -654,7 +657,7 @@ const App: React.FC = () => {
     // Adjust number of centers and seed new ones randomly within bounds
     const target = engineCenters;
     const current = focalPointsRef.current.length;
-    const bound = (GRID_SIZE * INITIAL_SPACING) / 2;
+    const bound = (GRID_SIZE * INITIAL_SPACING) / boundScale;
     if (target > current) {
       for (let i = current; i < target; i++) {
         focalPointsRef.current.push(
@@ -668,7 +671,7 @@ const App: React.FC = () => {
     } else if (target < current) {
       focalPointsRef.current = focalPointsRef.current.slice(0, target);
     }
-  }, [engineCenters]);
+  }, [engineCenters, boundScale]);
 
   const maxDist = useMemo(() => {
     return Math.sqrt(3 * Math.pow((GRID_SIZE * INITIAL_SPACING) / 2, 2)) * 1.1;
@@ -706,6 +709,7 @@ const App: React.FC = () => {
           config={config}
           focalPointsRef={focalPointsRef}
           showFocalPoint={showFocalPoint}
+          boundScale={boundScale}
         />
 
         <ContactShadows position={[0, -GRID_SIZE * 0.8, 0]} opacity={0.4} scale={GRID_SIZE * 4} blur={2.8} far={GRID_SIZE * 2} />
@@ -776,6 +780,25 @@ const App: React.FC = () => {
               accentColor={accentColor}
               accentShadow={accentShadow}
             />
+
+            <div className="group space-y-4 mb-8">
+              <div className="flex justify-between items-center">
+                <label className="text-[10px] uppercase font-bold text-neutral-500 tracking-wider">Bounds Area</label>
+                <span className="text-[10px] font-mono px-2 py-0.5 rounded border" style={{ color: accentColor, background: accentSoft, borderColor: accentBorder }}>
+                  {boundScale.toFixed(1)}x
+                </span>
+              </div>
+              <input
+                type="range"
+                min="1"
+                max="3"
+                step="0.05"
+                value={boundScale}
+                onChange={(e) => setBoundScale(parseFloat(e.target.value))}
+                className="w-full h-2 bg-neutral-800 rounded-lg appearance-none cursor-pointer disabled:opacity-30 transition-all"
+                style={{ accentColor }}
+              />
+            </div>
 
             <BezierEditor 
               p1x={p1x} p1y={p1y} p2x={p2x} p2y={p2y} 
