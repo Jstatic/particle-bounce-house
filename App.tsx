@@ -1,5 +1,5 @@
 
-import React, { useState, useMemo, useRef } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { Canvas, useFrame, ThreeElements } from '@react-three/fiber';
 import { OrbitControls, PerspectiveCamera, Environment, ContactShadows } from '@react-three/drei';
 import * as THREE from 'three';
@@ -17,6 +17,7 @@ declare global {
 const GRID_SIZE = 12;
 const INITIAL_SPACING = 1.2;
 const LUT_SIZE = 256;
+const MAX_ENGINE_CENTERS = 3;
 
 // Define a proper interface for the visual configuration to replace 'any' types.
 interface SceneConfig {
@@ -137,38 +138,64 @@ function generateInitialSpheres(spacing: number): SphereData[] {
 
 const BASE_WHITE = new THREE.Color('#ffffff');
 
-const Sphere: React.FC<{ 
-  data: SphereData; 
-  focalPointRef: React.RefObject<THREE.Vector3>;
+const InstancedSpheres: React.FC<{ 
+  baseSpheres: SphereData[];
+  focalPointsRef: React.RefObject<THREE.Vector3[]>;
+  weightRef: React.RefObject<number[]>;
   config: SceneConfig;
-}> = ({ data, focalPointRef, config }) => {
-  const meshRef = useRef<THREE.Mesh>(null);
+  sphereSegments: number;
+}> = ({ baseSpheres, focalPointsRef, weightRef, config, sphereSegments }) => {
+  const meshRef = useRef<THREE.InstancedMesh>(null);
   const materialRef = useRef<THREE.MeshStandardMaterial>(null);
+  const dummy = useMemo(() => new THREE.Object3D(), []);
+  const positions = useMemo(
+    () => baseSpheres.map(s => new THREE.Vector3(...s.position)),
+    [baseSpheres]
+  );
+
+  React.useEffect(() => {
+    if (materialRef.current) {
+      materialRef.current.color.copy(config.tintColor);
+      materialRef.current.emissive.copy(BASE_WHITE).lerp(config.tintColor, 0.6);
+      materialRef.current.opacity = config.opacity;
+      materialRef.current.needsUpdate = true;
+    }
+  }, [config.tintColor, config.opacity]);
 
   useFrame(() => {
-    if (!meshRef.current || !focalPointRef.current || !materialRef.current) return;
+    if (!meshRef.current || !focalPointsRef.current || focalPointsRef.current.length === 0) return;
 
-    const { maxDist, lut, minScale, maxScale, tintColor, opacity } = config;
-    const spherePos = meshRef.current.position;
-    const dist = spherePos.distanceTo(focalPointRef.current);
+    const { maxDist, lut, minScale } = config;
     
-    const t = Math.min(1, dist / maxDist);
-    const idx = Math.floor(t * (LUT_SIZE - 1));
-    const finalScale = lut[idx] || minScale;
-    meshRef.current.scale.setScalar(finalScale);
+    for (let i = 0; i < positions.length; i++) {
+      const pos = positions[i];
+      let dist = Infinity;
+      for (let c = 0; c < Math.min(focalPointsRef.current.length, MAX_ENGINE_CENTERS); c++) {
+        const w = weightRef.current?.[c] ?? 1;
+        if (w < 0.001) continue;
+        const d = pos.distanceTo(focalPointsRef.current[c]) / w;
+        if (d < dist) dist = d;
+      }
+      const t = Math.min(1, dist / maxDist);
+      const idx = Math.floor(t * (LUT_SIZE - 1));
+      const finalScale = lut[idx] || minScale;
 
-    // Apply tint uniformly, independent of the scale falloff.
-    const curveFactor = 1;
-
-    // Tint color follows the same falloff curve as scale.
-    materialRef.current.color.copy(BASE_WHITE).lerp(tintColor, curveFactor);
-    materialRef.current.emissive.copy(BASE_WHITE).lerp(tintColor, curveFactor * 0.6);
-    materialRef.current.opacity = opacity;
+      dummy.position.copy(pos);
+      dummy.scale.setScalar(finalScale);
+      dummy.updateMatrix();
+      meshRef.current.setMatrixAt(i, dummy.matrix);
+    }
+    meshRef.current.instanceMatrix.needsUpdate = true;
   });
 
   return (
-    <mesh ref={meshRef} position={data.position}>
-      <sphereGeometry args={[1, 8, 8]} />
+    <instancedMesh
+      ref={meshRef}
+      args={[undefined as unknown as THREE.BufferGeometry, undefined as unknown as THREE.Material, baseSpheres.length]}
+      castShadow
+      receiveShadow
+    >
+      <sphereGeometry args={[1, sphereSegments, sphereSegments]} />
       <meshStandardMaterial 
         ref={materialRef}
         color="#ffffff" 
@@ -176,10 +203,10 @@ const Sphere: React.FC<{
         emissiveIntensity={0.15} 
         roughness={0.1} 
         metalness={0.2} 
-        transparent={true}
+        transparent
         opacity={config.opacity}
       />
-    </mesh>
+    </instancedMesh>
   );
 };
 
@@ -212,52 +239,118 @@ const FocalPointMarker: React.FC<{ focalPointRef: React.RefObject<THREE.Vector3>
 const SceneContent: React.FC<{
   isDynamic: boolean;
   speed: number;
+  engineCenters: number;
+  engineRandomness: number;
+  sphereSegments: number;
   baseSpheres: SphereData[];
   config: SceneConfig;
-  focalPointRef: React.RefObject<THREE.Vector3>;
+  focalPointsRef: React.RefObject<THREE.Vector3[]>;
   showFocalPoint: boolean;
-}> = ({ isDynamic, speed, baseSpheres, config, focalPointRef, showFocalPoint }) => {
-  const velocity = useRef(new THREE.Vector3(
-    (Math.random() - 0.5) * 0.15,
-    (Math.random() - 0.5) * 0.15,
-    (Math.random() - 0.5) * 0.15
-  ));
+}> = ({ isDynamic, speed, engineCenters, engineRandomness, sphereSegments, baseSpheres, config, focalPointsRef, showFocalPoint }) => {
+  const phaseRef = useRef<{ px: number; py: number; pz: number; amp: THREE.Vector3; freq: THREE.Vector3 }[]>([]);
+  const weightRef = useRef<number[]>([]);
+  const weightTargetRef = useRef<number[]>([]);
+  const timeRef = useRef(0);
+
+  // Ensure we have a phase/weights per engine center (max capped)
+  useEffect(() => {
+    while (phaseRef.current.length < MAX_ENGINE_CENTERS) {
+      const jitterAmp = new THREE.Vector3(
+        0.6 + Math.random() * 0.8,
+        0.6 + Math.random() * 0.8,
+        0.6 + Math.random() * 0.8
+      );
+      const jitterFreq = new THREE.Vector3(
+        1 + Math.random() * 0.3,
+        1 + Math.random() * 0.3,
+        1 + Math.random() * 0.3
+      );
+      phaseRef.current.push({
+        px: Math.random() * Math.PI * 2,
+        py: Math.random() * Math.PI * 2,
+        pz: Math.random() * Math.PI * 2,
+        amp: jitterAmp,
+        freq: jitterFreq,
+      });
+    }
+    while (phaseRef.current.length > MAX_ENGINE_CENTERS) {
+      phaseRef.current.pop();
+    }
+    while (focalPointsRef.current.length < MAX_ENGINE_CENTERS) {
+      const bound = (GRID_SIZE * INITIAL_SPACING) / 2;
+      focalPointsRef.current.push(
+        new THREE.Vector3(
+          (Math.random() - 0.5) * bound,
+          (Math.random() - 0.5) * bound,
+          (Math.random() - 0.5) * bound
+        )
+      );
+    }
+    while (weightRef.current.length < MAX_ENGINE_CENTERS) {
+      weightRef.current.push(0);
+    }
+    while (weightTargetRef.current.length < MAX_ENGINE_CENTERS) {
+      weightTargetRef.current.push(0);
+    }
+    // Set targets: active centers to 1, inactive to 0
+    for (let i = 0; i < MAX_ENGINE_CENTERS; i++) {
+      weightTargetRef.current[i] = i < engineCenters ? 1 : 0;
+    }
+  }, [engineCenters]);
 
   useFrame((state, delta) => {
-    if (!isDynamic || !focalPointRef.current) return;
+    if (!isDynamic || !focalPointsRef.current) return;
 
-    const bound = (GRID_SIZE * INITIAL_SPACING) / 2;
-    const scaledDelta = delta * speed * 15;
+    timeRef.current += delta * speed;
 
-    focalPointRef.current.x += velocity.current.x * scaledDelta;
-    focalPointRef.current.y += velocity.current.y * scaledDelta;
-    focalPointRef.current.z += velocity.current.z * scaledDelta;
-
-    if (Math.abs(focalPointRef.current.x) > bound) {
-      velocity.current.x *= -1;
-      focalPointRef.current.x = Math.sign(focalPointRef.current.x) * bound;
+    // Smooth weights toward targets for gentle fade in/out
+    for (let i = 0; i < weightRef.current.length; i++) {
+      const current = weightRef.current[i] ?? 0;
+      const target = weightTargetRef.current[i] ?? 0;
+      weightRef.current[i] = THREE.MathUtils.lerp(current, target, 1 - Math.exp(-delta * 6));
     }
-    if (Math.abs(focalPointRef.current.y) > bound) {
-      velocity.current.y *= -1;
-      focalPointRef.current.y = Math.sign(focalPointRef.current.y) * bound;
-    }
-    if (Math.abs(focalPointRef.current.z) > bound) {
-      velocity.current.z *= -1;
-      focalPointRef.current.z = Math.sign(focalPointRef.current.z) * bound;
+
+    const bound = (GRID_SIZE * INITIAL_SPACING) / 2 * 1.2;
+    const t = timeRef.current;
+    const freq = 0.2;
+    const randNorm = engineRandomness / 100;
+
+    const centerCount = Math.min(engineCenters, MAX_ENGINE_CENTERS);
+    for (let i = 0; i < centerCount; i++) {
+      const phase = phaseRef.current[i];
+      const freqJitterX = (1.0 + i * 0.1) * THREE.MathUtils.lerp(1, phase.freq.x, randNorm);
+      const freqJitterY = (1.35 + i * 0.1) * THREE.MathUtils.lerp(1, phase.freq.y, randNorm);
+      const freqJitterZ = (0.8 + i * 0.08) * THREE.MathUtils.lerp(1, phase.freq.z, randNorm);
+
+      const ampJitterX = THREE.MathUtils.lerp(1, phase.amp.x, randNorm);
+      const ampJitterY = THREE.MathUtils.lerp(1, phase.amp.y, randNorm);
+      const ampJitterZ = THREE.MathUtils.lerp(1, phase.amp.z, randNorm);
+
+      const x = Math.sin(t * freq * freqJitterX + phase.px) * bound * ampJitterX;
+      const y = Math.sin(t * freq * freqJitterY + phase.py) * bound * 0.85 * ampJitterY;
+      const z = Math.cos(t * freq * freqJitterZ + phase.pz) * bound * ampJitterZ;
+
+      if (!focalPointsRef.current[i]) {
+        focalPointsRef.current[i] = new THREE.Vector3();
+      }
+      focalPointsRef.current[i].set(x, y, z);
     }
   });
 
   return (
     <group>
-      <FocalPointMarker focalPointRef={focalPointRef} visible={showFocalPoint} />
-      {baseSpheres.map(s => (
-        <Sphere 
-          key={s.id} 
-          data={s} 
-          focalPointRef={focalPointRef} 
-          config={config} 
-        />
+      {showFocalPoint && focalPointsRef.current?.slice(0, MAX_ENGINE_CENTERS).map((ref, idx) => (
+        weightRef.current[idx] > 0.05 ? (
+          <FocalPointMarker key={`fp-${idx}`} focalPointRef={{ current: ref }} visible={true} />
+        ) : null
       ))}
+      <InstancedSpheres 
+        baseSpheres={baseSpheres} 
+        focalPointsRef={focalPointsRef} 
+        weightRef={weightRef}
+        config={config}
+        sphereSegments={sphereSegments} 
+      />
     </group>
   );
 };
@@ -274,7 +367,9 @@ const BezierEditor: React.FC<{
   isReversed: boolean;
   minScale: number;
   maxScale: number;
-}> = ({ p1x, p1y, p2x, p2y, onChange, isReversed, minScale, maxScale }) => {
+  accentColor: string;
+  accentBorder: string;
+}> = ({ p1x, p1y, p2x, p2y, onChange, isReversed, minScale, maxScale, accentColor, accentBorder }) => {
   const svgRef = useRef<SVGSVGElement>(null);
   const [activeHandle, setActiveHandle] = useState<number | null>(null);
 
@@ -319,9 +414,9 @@ const BezierEditor: React.FC<{
       <div className="relative group">
         <svg
           ref={svgRef}
-          viewBox="0 0 100 100"
+          viewBox="-10 0 120 100"
           preserveAspectRatio="xMidYMid meet"
-          className="w-full h-40 cursor-crosshair touch-none overflow-visible"
+          className="w-[calc(100%+24px)] -mx-3 h-40 cursor-crosshair touch-none overflow-visible"
           onPointerMove={handlePointerMove}
           onPointerUp={handlePointerUp}
           onPointerLeave={handlePointerUp}
@@ -333,21 +428,21 @@ const BezierEditor: React.FC<{
           <line x1="75" y1="0" x2="75" y2="100" stroke="rgba(255,255,255,0.03)" strokeWidth="0.5" />
           
           {/* Guide lines to handles */}
-          <line x1="0" y1={(1 - startY) * 100} x2={p1x * 100} y2={(1 - p1y) * 100} stroke="rgba(99, 102, 241, 0.2)" strokeWidth="1" strokeDasharray="3" />
-          <line x1="100" y1={(1 - endY) * 100} x2={p2x * 100} y2={(1 - p2y) * 100} stroke="rgba(99, 102, 241, 0.2)" strokeWidth="1" strokeDasharray="3" />
+          <line x1="0" y1={(1 - startY) * 100} x2={p1x * 100} y2={(1 - p1y) * 100} stroke={accentBorder} strokeWidth="1" strokeDasharray="3" />
+          <line x1="100" y1={(1 - endY) * 100} x2={p2x * 100} y2={(1 - p2y) * 100} stroke={accentBorder} strokeWidth="1" strokeDasharray="3" />
 
           {/* Bezier Path */}
-          <path d={path} fill="none" stroke="#6366f1" strokeWidth="3" strokeLinecap="round" />
+          <path d={path} fill="none" stroke={accentColor} strokeWidth="3" strokeLinecap="round" />
 
           {/* Anchors */}
-          <circle cx="0" cy={(1 - startY) * 100} r="2.5" fill="#4f46e5" />
-          <circle cx="100" cy={(1 - endY) * 100} r="2.5" fill="#4f46e5" />
+          <circle cx="0" cy={(1 - startY) * 100} r="2.5" fill={accentColor} />
+          <circle cx="100" cy={(1 - endY) * 100} r="2.5" fill={accentColor} />
 
           {/* Interactive Handles */}
           <circle
             cx={p1x * 100} cy={(1 - p1y) * 100} r="5"
             fill="#ffffff"
-            stroke="#6366f1"
+            stroke={accentColor}
             strokeWidth="1"
             className="cursor-grab active:cursor-grabbing transition-colors duration-200 shadow-xl"
             onPointerDown={(e) => { e.stopPropagation(); setActiveHandle(1); }}
@@ -358,7 +453,7 @@ const BezierEditor: React.FC<{
           <circle
             cx={p2x * 100} cy={(1 - p2y) * 100} r="5"
             fill="#ffffff"
-            stroke="#6366f1"
+            stroke={accentColor}
             strokeWidth="1"
             className="cursor-grab active:cursor-grabbing transition-colors duration-200 shadow-xl"
             onPointerDown={(e) => { e.stopPropagation(); setActiveHandle(2); }}
@@ -387,7 +482,10 @@ const ColorPicker: React.FC<{
   value: number;
   onHueChange: (h: number) => void;
   onSaturationValueChange: (s: number, v: number) => void;
-}> = ({ hue, saturation, value, onHueChange, onSaturationValueChange }) => {
+  accentColor: string;
+  accentSoft: string;
+  accentBorder: string;
+}> = ({ hue, saturation, value, onHueChange, onSaturationValueChange, accentColor, accentSoft, accentBorder }) => {
   const svRef = useRef<HTMLDivElement>(null);
   const hueRef = useRef<HTMLDivElement>(null);
 
@@ -419,7 +517,7 @@ const ColorPicker: React.FC<{
     <div className="space-y-4">
       <div className="flex justify-between items-center">
         <label className="text-[10px] uppercase font-bold text-neutral-500 tracking-wider">Color</label>
-        <span className="text-[10px] font-mono text-indigo-400 bg-indigo-400/10 px-2 py-0.5 rounded border border-indigo-400/20">
+        <span className="text-[10px] font-mono px-2 py-0.5 rounded border" style={{ color: accentColor, background: accentSoft, borderColor: accentBorder }}>
           {hue.toFixed(0)}° · {(saturation * 100).toFixed(0)}% · {(value * 100).toFixed(0)}%
         </span>
       </div>
@@ -473,7 +571,9 @@ const ScaleRangeSlider: React.FC<{
   min: number; max: number;
   minVal: number; maxVal: number;
   onChange: (min: number, max: number) => void;
-}> = ({ min, max, minVal, maxVal, onChange }) => {
+  accentColor: string;
+  accentShadow: string;
+}> = ({ min, max, minVal, maxVal, onChange, accentColor, accentShadow }) => {
   const handleMinChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = Math.min(parseFloat(e.target.value), maxVal - 0.01);
     onChange(value, maxVal);
@@ -491,25 +591,27 @@ const ScaleRangeSlider: React.FC<{
     <div className="mt-8 mb-6 px-1">
       <div className="flex justify-between items-center mb-5">
         <label className="text-[10px] uppercase font-bold tracking-wider text-neutral-500">Dynamic Bounds</label>
-        <div className="text-[10px] font-mono bg-neutral-900/50 px-2 py-0.5 rounded border border-white/5 text-neutral-400">
-          <span className="text-indigo-400">{minVal.toFixed(2)}x</span> <span className="mx-1 opacity-30">—</span> <span className="text-indigo-400">{maxVal.toFixed(2)}x</span>
+          <div className="text-[10px] font-mono bg-neutral-900/50 px-2 py-0.5 rounded border border-white/5 text-neutral-400">
+          <span style={{ color: accentColor }}>{minVal.toFixed(2)}x</span> <span className="mx-1 opacity-30">—</span> <span style={{ color: accentColor }}>{maxVal.toFixed(2)}x</span>
         </div>
       </div>
       <div className="relative h-8 flex items-center">
         <div className="absolute w-full h-2 bg-neutral-800 rounded-full" />
         <div 
-          className="absolute h-2 bg-indigo-500 rounded-full shadow-[0_0_10px_rgba(99,102,241,0.4)]" 
-          style={{ left: `${minPercent}%`, width: `${maxPercent - minPercent}%` }}
+          className="absolute h-2 rounded-full" 
+          style={{ left: `${minPercent}%`, width: `${maxPercent - minPercent}%`, background: accentColor, boxShadow: accentShadow }}
         />
         <input
           type="range" min={min} max={max} step="0.01" value={minVal}
           onChange={handleMinChange}
-          className="absolute w-full pointer-events-none appearance-none bg-transparent [&::-webkit-slider-thumb]:pointer-events-auto [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-5 [&::-webkit-slider-thumb]:h-5 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-indigo-500 [&::-webkit-slider-thumb]:cursor-pointer [&::-webkit-slider-thumb]:shadow-lg"
+          className="absolute w-full pointer-events-none appearance-none bg-transparent [&::-webkit-slider-thumb]:pointer-events-auto [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-5 [&::-webkit-slider-thumb]:h-5 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-white [&::-webkit-slider-thumb]:cursor-pointer [&::-webkit-slider-thumb]:shadow-lg"
+          style={{ accentColor }}
         />
         <input
           type="range" min={min} max={max} step="0.01" value={maxVal}
           onChange={handleMaxChange}
-          className="absolute w-full pointer-events-none appearance-none bg-transparent [&::-webkit-slider-thumb]:pointer-events-auto [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-5 [&::-webkit-slider-thumb]:h-5 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-indigo-500 [&::-webkit-slider-thumb]:cursor-pointer [&::-webkit-slider-thumb]:shadow-lg"
+          className="absolute w-full pointer-events-none appearance-none bg-transparent [&::-webkit-slider-thumb]:pointer-events-auto [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-5 [&::-webkit-slider-thumb]:h-5 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-white [&::-webkit-slider-thumb]:cursor-pointer [&::-webkit-slider-thumb]:shadow-lg"
+          style={{ accentColor }}
         />
       </div>
     </div>
@@ -521,15 +623,19 @@ const App: React.FC = () => {
   const [opacity, setOpacity] = useState(0.5);
   const [isReversed, setIsReversed] = useState(false);
   const [isDynamic, setIsDynamic] = useState(true);
-  const [speed, setSpeed] = useState(2.0);
+  const [speed, setSpeed] = useState(3.0);
   const [showFocalPoint, setShowFocalPoint] = useState(false);
 
   // Scale Range Bounds
   const [minScale, setMinScale] = useState(0.03);
-  const [maxScale, setMaxScale] = useState(0.74);
+  const [maxScale, setMaxScale] = useState(2.0);
   const [hue, setHue] = useState(220); // degrees
   const [saturation, setSaturation] = useState(0.75); // 0-1 (X axis)
   const [value, setValue] = useState(0.65); // 0-1 (Y axis, brightness)
+  const [sphereSegments, setSphereSegments] = useState(16);
+  const [engineCenters, setEngineCenters] = useState(1);
+  const [engineRandomness, setEngineRandomness] = useState(0);
+  const [ambientIntensity, setAmbientIntensity] = useState(0.5);
 
   // Bezier Controls
   const [p1x, setP1x] = useState(0.33);
@@ -542,7 +648,32 @@ const App: React.FC = () => {
     return new THREE.Color(r, g, b);
   }, [hue, saturation, value]);
 
-  const focalPointRef = useRef(new THREE.Vector3(0, 0, 0));
+  const accentColor = useMemo(() => `hsl(${hue}deg, 80%, 60%)`, [hue]);
+  const accentSoft = useMemo(() => `hsla(${hue}deg, 80%, 60%, 0.1)`, [hue]);
+  const accentBorder = useMemo(() => `hsla(${hue}deg, 80%, 60%, 0.2)`, [hue]);
+  const accentShadow = useMemo(() => `0 0 15px hsla(${hue}deg, 80%, 60%, 0.4)`, [hue]);
+
+  const focalPointsRef = useRef<THREE.Vector3[]>([new THREE.Vector3(0, 0, 0)]);
+
+  useEffect(() => {
+    // Adjust number of centers and seed new ones randomly within bounds
+    const target = engineCenters;
+    const current = focalPointsRef.current.length;
+    const bound = (GRID_SIZE * INITIAL_SPACING) / 2;
+    if (target > current) {
+      for (let i = current; i < target; i++) {
+        focalPointsRef.current.push(
+          new THREE.Vector3(
+            (Math.random() - 0.5) * bound,
+            (Math.random() - 0.5) * bound,
+            (Math.random() - 0.5) * bound
+          )
+        );
+      }
+    } else if (target < current) {
+      focalPointsRef.current = focalPointsRef.current.slice(0, target);
+    }
+  }, [engineCenters]);
 
   const maxDist = useMemo(() => {
     return Math.sqrt(3 * Math.pow((GRID_SIZE * INITIAL_SPACING) / 2, 2)) * 1.1;
@@ -557,19 +688,22 @@ const App: React.FC = () => {
 
   return (
     <div className="relative w-full h-full bg-neutral-950 text-white font-sans overflow-hidden">
-      <Canvas shadows dpr={[1, 1.5]}>
-        <PerspectiveCamera makeDefault position={[15, 15, 15]} />
+      <Canvas shadows dpr={[1, 1.5]} style={{ transform: 'translateX(150px)' }}>
+        <PerspectiveCamera makeDefault position={[20, 20, 20]} />
         <OrbitControls makeDefault autoRotate={!isDynamic} autoRotateSpeed={0.3} enableDamping />
-        <ambientLight intensity={0.5} />
+        <ambientLight intensity={ambientIntensity} />
         <spotLight position={[20, 20, 20]} angle={0.2} penumbra={1} intensity={2} castShadow />
         <pointLight position={[-20, -20, -20]} intensity={0.5} />
         
         <SceneContent 
           isDynamic={isDynamic}
           speed={speed}
+          engineCenters={engineCenters}
+          engineRandomness={engineRandomness}
+          sphereSegments={sphereSegments}
           baseSpheres={baseSpheres}
           config={config}
-          focalPointRef={focalPointRef}
+          focalPointsRef={focalPointsRef}
           showFocalPoint={showFocalPoint}
         />
 
@@ -577,27 +711,61 @@ const App: React.FC = () => {
         <Environment preset="night" />
       </Canvas>
       {/* Sidebar Controls */}
-      <div className="absolute top-36 left-10 w-80 pointer-events-none flex flex-col gap-8 max-h-[calc(100vh-180px)] overflow-y-auto pr-3 scrollbar-hide z-10">
-
+      <div className="absolute top-0 left-0 h-screen w-80 pointer-events-none flex flex-col gap-8 overflow-y-auto pr-3 scrollbar-hide z-10">
+        
         {/* Sculpting Section */}
-        <div className="pointer-events-auto bg-neutral-900/70 backdrop-blur-2xl border border-white/10 p-7 rounded-[2rem] shadow-2xl transition-all hover:border-white/20">
+        <div className="pointer-events-auto bg-neutral-900/70 backdrop-blur-2xl border border-white/10 p-7 shadow-2xl transition-all hover:border-white/20 rounded-none h-full">
           <div className="group space-y-4 mb-8">
             <div className="flex justify-between items-center">
               <label className="text-[10px] uppercase font-bold text-neutral-500 tracking-wider">Engine Velocity</label>
-              <span className="text-[10px] font-mono text-indigo-400 bg-indigo-400/10 px-2 py-0.5 rounded border border-indigo-400/20">{speed.toFixed(1)}x</span>
+              <span className="text-[10px] font-mono px-2 py-0.5 rounded border" style={{ color: accentColor, background: accentSoft, borderColor: accentBorder }}>{speed.toFixed(1)}x</span>
             </div>
             <input 
-              type="range" min="0.1" max="4.0" step="0.1" value={speed} 
+              type="range" min="0.1" max="8.0" step="0.1" value={speed} 
               onChange={(e) => setSpeed(parseFloat(e.target.value))}
-              className="w-full h-2 bg-neutral-800 rounded-lg appearance-none cursor-pointer accent-indigo-500 disabled:opacity-30 transition-all"
+              className="w-full h-2 bg-neutral-800 rounded-lg appearance-none cursor-pointer disabled:opacity-30 transition-all"
+              style={{ accentColor }}
               disabled={!isDynamic}
             />
           </div>
 
+          <div className="group space-y-4 mb-8">
+            <div className="flex justify-between items-center">
+              <label className="text-[10px] uppercase font-bold text-neutral-500 tracking-wider">Engine Centers</label>
+            </div>
+            <div className="flex gap-2">
+              {[1, 2, 3].map(val => (
+                <button
+                  key={val}
+                  onClick={() => setEngineCenters(val)}
+                  className="flex-1 py-2 text-[11px] font-bold uppercase tracking-wider rounded-lg border transition-all bg-neutral-800 text-neutral-400 border-white/10 hover:text-white hover:border-white/30"
+                  style={engineCenters === val ? { background: accentColor, color: '#fff', borderColor: accentBorder, boxShadow: accentShadow } : undefined}
+                >
+                  {val}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="group space-y-4 mb-8">
+            <div className="flex justify-between items-center">
+              <label className="text-[10px] uppercase font-bold text-neutral-500 tracking-wider">Engine Randomness</label>
+              <span className="text-[10px] font-mono px-2 py-0.5 rounded border" style={{ color: accentColor, background: accentSoft, borderColor: accentBorder }}>{engineRandomness.toFixed(0)}%</span>
+            </div>
+            <input 
+              type="range" min="0" max="100" step="1" value={engineRandomness} 
+              onChange={(e) => setEngineRandomness(parseInt(e.target.value, 10))}
+              className="w-full h-2 bg-neutral-800 rounded-lg appearance-none cursor-pointer disabled:opacity-30 transition-all"
+              style={{ accentColor }}
+            />
+          </div>
+
           <ScaleRangeSlider 
-            min={0.01} max={1.0} 
+            min={0.01} max={2.0} 
             minVal={minScale} maxVal={maxScale} 
             onChange={(mi, ma) => { setMinScale(mi); setMaxScale(ma); }} 
+            accentColor={accentColor}
+            accentShadow={accentShadow}
           />
 
           <BezierEditor 
@@ -606,6 +774,8 @@ const App: React.FC = () => {
             isReversed={isReversed} 
             minScale={minScale}
             maxScale={maxScale}
+            accentColor={accentColor}
+            accentBorder={accentBorder}
           />
 
           <div className="space-y-8 mt-10">
@@ -615,26 +785,69 @@ const App: React.FC = () => {
               value={value}
               onHueChange={setHue}
               onSaturationValueChange={(s, v) => { setSaturation(s); setValue(v); }}
+              accentColor={accentColor}
+              accentSoft={accentSoft}
+              accentBorder={accentBorder}
             />
-
-            <div className="group space-y-4">
-              <div className="flex justify-between items-center">
-                <label className="text-[10px] uppercase font-bold text-neutral-500 tracking-wider">Atmospheric Density</label>
-                <span className="text-[10px] font-mono text-indigo-400 bg-indigo-400/10 px-2 py-0.5 rounded border border-indigo-400/20">{opacity.toFixed(2)}</span>
-              </div>
-              <input 
-                type="range" min="0" max="1" step="0.01" value={opacity} 
-                onChange={(e) => setOpacity(parseFloat(e.target.value))}
-                className="w-full h-2 bg-neutral-800 rounded-lg appearance-none cursor-pointer accent-indigo-500 transition-all"
-              />
-            </div>
           </div>
+        </div>
+      </div>
+
+      {/* Ambient Light Control */}
+      <div className="absolute top-4 right-4 pointer-events-auto z-10 bg-neutral-900/80 border border-white/10 rounded-xl px-4 py-4 shadow-2xl backdrop-blur space-y-4 w-72">
+        <div className="space-y-3">
+          <div className="flex items-center justify-between gap-4">
+            <span className="text-[10px] uppercase font-bold tracking-wider text-neutral-400">Ambient</span>
+            <span className="text-[10px] font-mono px-2 py-0.5 rounded border" style={{ color: accentColor, background: accentSoft, borderColor: accentBorder }}>
+              {ambientIntensity.toFixed(2)}
+            </span>
+          </div>
+          <input
+            type="range"
+            min="0"
+            max="2"
+            step="0.01"
+            value={ambientIntensity}
+            onChange={(e) => setAmbientIntensity(parseFloat(e.target.value))}
+            className="w-full h-2 bg-neutral-800 rounded-lg appearance-none cursor-pointer"
+            style={{ accentColor }}
+          />
+        </div>
+
+        <div className="space-y-3">
+          <div className="flex items-center justify-between gap-4">
+            <span className="text-[10px] uppercase font-bold tracking-wider text-neutral-400">Atmospheric Density</span>
+            <span className="text-[10px] font-mono px-2 py-0.5 rounded border" style={{ color: accentColor, background: accentSoft, borderColor: accentBorder }}>{opacity.toFixed(2)}</span>
+          </div>
+          <input 
+            type="range" min="0" max="1" step="0.01" value={opacity} 
+            onChange={(e) => setOpacity(parseFloat(e.target.value))}
+            className="w-full h-2 bg-neutral-800 rounded-lg appearance-none cursor-pointer transition-all"
+            style={{ accentColor }}
+          />
+        </div>
+
+        <div className="space-y-3">
+          <div className="flex items-center justify-between gap-4">
+            <span className="text-[10px] uppercase font-bold tracking-wider text-neutral-400">Sphere Resolution</span>
+            <span className="text-[10px] font-mono px-2 py-0.5 rounded border" style={{ color: accentColor, background: accentSoft, borderColor: accentBorder }}>{sphereSegments}</span>
+          </div>
+          <input
+            type="range"
+            min="4"
+            max="48"
+            step="2"
+            value={sphereSegments}
+            onChange={(e) => setSphereSegments(parseInt(e.target.value, 10))}
+            className="w-full h-2 bg-neutral-800 rounded-lg appearance-none cursor-pointer transition-all"
+            style={{ accentColor }}
+          />
         </div>
       </div>
 
       <div className="absolute bottom-10 right-10 text-right hidden lg:block pointer-events-none z-10 opacity-40 group hover:opacity-100 transition-opacity duration-500">
         <div className="text-[10px] text-neutral-400 font-mono tracking-widest space-y-1">
-          <p className="font-bold text-indigo-500/80">CORE: REACT-THREE-FIBER</p>
+          <p className="font-bold" style={{ color: accentColor }}>CORE: REACT-THREE-FIBER</p>
           <p>LOGIC: DUAL-BOUND CUBIC BEZIER</p>
           <p>RENDER: SPATIAL LUT SAMPLING</p>
         </div>
