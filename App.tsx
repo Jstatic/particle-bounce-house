@@ -4,7 +4,7 @@ import { Canvas, useFrame, ThreeElements } from '@react-three/fiber';
 import { OrbitControls, PerspectiveCamera, Environment, ContactShadows } from '@react-three/drei';
 import * as THREE from 'three';
 import { SphereData } from './types';
-import { ArrowUpDown, Eye, EyeOff } from 'lucide-react';
+import { ArrowUpDown, Eye, EyeOff, Menu, X } from 'lucide-react';
 
 // Properly augment the JSX namespace to include React Three Fiber elements.
 // This ensures that tags like <mesh>, <group>, <sphereGeometry>, etc., are recognized.
@@ -634,6 +634,7 @@ const App: React.FC = () => {
   const [boundScale, setBoundScale] = useState(2);
   const [ambientIntensity, setAmbientIntensity] = useState(0.5);
   const [showUI, setShowUI] = useState(true);
+  const [drawerOpen, setDrawerOpen] = useState(false);
 
   // Bezier Controls
   const [p1x, setP1x] = useState(0.33);
@@ -650,6 +651,8 @@ const App: React.FC = () => {
   const accentSoft = useMemo(() => `hsla(${hue}deg, 80%, 60%, 0.1)`, [hue]);
   const accentBorder = useMemo(() => `hsla(${hue}deg, 80%, 60%, 0.2)`, [hue]);
   const accentShadow = useMemo(() => `0 0 15px hsla(${hue}deg, 80%, 60%, 0.4)`, [hue]);
+  const scrollbarThumb = useMemo(() => `hsla(${hue}deg, 30%, 35%, 0.3)`, [hue]);
+  const scrollbarTrack = useMemo(() => `hsla(${hue}deg, 30%, 35%, 0.05)`, [hue]);
 
   const focalPointsRef = useRef<THREE.Vector3[]>([new THREE.Vector3(0, 0, 0)]);
 
@@ -686,6 +689,21 @@ const App: React.FC = () => {
 
   return (
     <div className="relative w-full h-full bg-neutral-950 text-white font-sans overflow-hidden">
+      <style>{`
+        .sidebar-scrollbar::-webkit-scrollbar {
+          width: 8px;
+        }
+        .sidebar-scrollbar::-webkit-scrollbar-track {
+          background: ${scrollbarTrack};
+        }
+        .sidebar-scrollbar::-webkit-scrollbar-thumb {
+          background: ${scrollbarThumb};
+          border-radius: 4px;
+        }
+        .sidebar-scrollbar::-webkit-scrollbar-thumb:hover {
+          background: hsla(${hue}deg, 10%, 20%, 0.1);
+        }
+      `}</style>
       <Canvas className="w-full h-full" shadows dpr={[1, 1.5]} style={{ transform: 'translateX(100px)' }}>
         <PerspectiveCamera makeDefault position={[20, 20, 20]} />
         <OrbitControls
@@ -715,19 +733,43 @@ const App: React.FC = () => {
         <ContactShadows position={[0, -GRID_SIZE * 0.8, 0]} opacity={0.4} scale={GRID_SIZE * 4} blur={2.8} far={GRID_SIZE * 2} />
         <Environment preset="night" />
       </Canvas>
+      
+      {/* Hamburger Menu Button - Mobile Only */}
+      {showUI && !drawerOpen && (
+        <button
+          onClick={() => setDrawerOpen(true)}
+          className="max-[960px]:flex lg:hidden absolute top-8 right-5 z-30 w-10 h-10 flex items-center justify-center rounded-lg border border-white/10 bg-neutral-900/80 text-white shadow-2xl backdrop-blur transition hover:border-white/30 hover:bg-neutral-800"
+          title="Open Menu"
+        >
+          <Menu size={18} className="flex-shrink-0" />
+        </button>
+      )}
+
+      {/* Close Button - Mobile Only (Upper Right) */}
+      {showUI && drawerOpen && (
+        <button
+          onClick={() => setDrawerOpen(false)}
+          className="max-[960px]:flex lg:hidden absolute top-8 right-5 z-30 w-10 h-10 flex items-center justify-center rounded-lg border border-white/10 bg-neutral-900/80 text-white shadow-2xl backdrop-blur transition hover:border-white/30 hover:bg-neutral-800"
+          title="Close Menu"
+        >
+          <X size={18} className="flex-shrink-0" />
+        </button>
+      )}
+
       {/* Sidebar Controls */}
       {showUI && (
         <div
-          className="absolute top-0 left-0 h-screen w-80 pointer-events-auto flex flex-col gap-8 overflow-y-auto pr-3 scrollbar-hide z-10 bg-neutral-900/70 backdrop-blur-2xl"
+          className={`sidebar-scrollbar absolute top-0 left-0 h-screen w-80 pointer-events-auto flex flex-col gap-8 overflow-y-auto z-10 bg-neutral-900/70 backdrop-blur-2xl max-[960px]:pb-12 max-[960px]:transition-transform max-[960px]:duration-300 max-[960px]:ease-in-out ${
+            drawerOpen ? 'max-[960px]:translate-x-0' : 'max-[960px]:-translate-x-full'
+          } lg:translate-x-0`}
           style={{
             scrollbarWidth: 'thin',
-            scrollbarColor: '#1f2937 transparent',
-            paddingBottom: '24px',
+            scrollbarColor: `${scrollbarThumb} ${scrollbarTrack}`,
           }}
         >
           
           {/* Sculpting Section */}
-          <div className="pointer-events-auto p-7 shadow-2xl transition-all rounded-none h-full">
+          <div className="pointer-events-auto p-7 shadow-2xl transition-all rounded-none">
             <div className="group space-y-4 mb-8">
               <div className="flex justify-between items-center">
                 <label className="text-[10px] uppercase font-bold text-neutral-500 tracking-wider">Engine Velocity</label>
@@ -824,13 +866,65 @@ const App: React.FC = () => {
                 />
               </div>
             </div>
+
+            {/* Mobile-only controls (shown on screens < 960px) */}
+            <div className="space-y-4 mt-8 max-[960px]:block lg:hidden">
+              <div className="space-y-3">
+                <div className="flex items-center justify-between gap-4">
+                  <span className="text-[10px] uppercase font-bold tracking-wider text-neutral-400">Ambient</span>
+                  <span className="text-[10px] font-mono px-2 py-0.5 rounded border" style={{ color: accentColor, background: accentSoft, borderColor: accentBorder }}>
+                    {ambientIntensity.toFixed(2)}
+                  </span>
+                </div>
+                <input
+                  type="range"
+                  min="0"
+                  max="2"
+                  step="0.01"
+                  value={ambientIntensity}
+                  onChange={(e) => setAmbientIntensity(parseFloat(e.target.value))}
+                  className="w-full h-2 bg-neutral-800 rounded-lg appearance-none cursor-pointer"
+                  style={{ accentColor }}
+                />
+              </div>
+
+              <div className="space-y-3">
+                <div className="flex items-center justify-between gap-4">
+                  <span className="text-[10px] uppercase font-bold tracking-wider text-neutral-400">Atmospheric Density</span>
+                  <span className="text-[10px] font-mono px-2 py-0.5 rounded border" style={{ color: accentColor, background: accentSoft, borderColor: accentBorder }}>{opacity.toFixed(2)}</span>
+                </div>
+                <input 
+                  type="range" min="0" max="1" step="0.01" value={opacity} 
+                  onChange={(e) => setOpacity(parseFloat(e.target.value))}
+                  className="w-full h-2 bg-neutral-800 rounded-lg appearance-none cursor-pointer transition-all"
+                  style={{ accentColor }}
+                />
+              </div>
+
+              <div className="space-y-3">
+                <div className="flex items-center justify-between gap-4">
+                  <span className="text-[10px] uppercase font-bold tracking-wider text-neutral-400">Sphere Resolution</span>
+                  <span className="text-[10px] font-mono px-2 py-0.5 rounded border" style={{ color: accentColor, background: accentSoft, borderColor: accentBorder }}>{sphereSegments}</span>
+                </div>
+                <input
+                  type="range"
+                  min="4"
+                  max="48"
+                  step="2"
+                  value={sphereSegments}
+                  onChange={(e) => setSphereSegments(parseInt(e.target.value, 10))}
+                  className="w-full h-2 bg-neutral-800 rounded-lg appearance-none cursor-pointer transition-all"
+                  style={{ accentColor }}
+                />
+              </div>
+            </div>
           </div>
         </div>
       )}
 
-      {/* Ambient Light Control */}
+      {/* Ambient Light Control - Desktop only (hidden on screens < 960px) */}
       {showUI && (
-      <div className="absolute top-4 right-4 pointer-events-auto z-10 bg-neutral-900/80 border border-white/10 rounded-xl px-4 py-4 shadow-2xl backdrop-blur space-y-4 w-72">
+      <div className="absolute top-4 right-4 pointer-events-auto z-10 bg-neutral-900/80 border border-white/10 rounded-xl px-4 py-4 shadow-2xl backdrop-blur space-y-4 w-72 max-[960px]:hidden">
         <div className="space-y-3">
           <div className="flex items-center justify-between gap-4">
             <span className="text-[10px] uppercase font-bold tracking-wider text-neutral-400">Ambient</span>
@@ -883,7 +977,7 @@ const App: React.FC = () => {
       )}
 
       {showUI && (
-      <div className="absolute bottom-20 right-5 text-right hidden lg:block pointer-events-none z-10 opacity-40 group hover:opacity-100 transition-opacity duration-500">
+      <div className="absolute bottom-20 max-[960px]:bottom-28 right-5 text-right block pointer-events-none z-10 opacity-40 group hover:opacity-100 transition-opacity duration-500">
         <div className="text-[10px] text-neutral-400 font-mono tracking-widest space-y-1">
           <p className="font-bold" style={{ color: accentColor }}>PARTICLE BOUNCE HOUSE</p>
           <p>JOHN LEONARD 2025</p>
@@ -894,7 +988,7 @@ const App: React.FC = () => {
       {/* UI Visibility Toggle */}
       <button
         onClick={() => setShowUI(!showUI)}
-        className="absolute bottom-5 right-4 z-20 w-10 h-10 flex items-center justify-center rounded-lg border border-white/10 bg-neutral-900/80 text-white shadow-2xl backdrop-blur transition hover:border-white/30 hover:bg-neutral-800"
+        className="absolute bottom-5 max-[960px]:bottom-12 right-4 z-20 w-10 h-10 flex items-center justify-center rounded-lg border border-white/10 bg-neutral-900/80 text-white shadow-2xl backdrop-blur transition hover:border-white/30 hover:bg-neutral-800"
         title={showUI ? "Hide UI" : "Show UI"}
       >
         {showUI ? <EyeOff size={18} /> : <Eye size={18} />}
