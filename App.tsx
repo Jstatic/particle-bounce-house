@@ -738,7 +738,7 @@ const App: React.FC = () => {
       {showUI && !drawerOpen && (
         <button
           onClick={() => setDrawerOpen(true)}
-          className="max-[960px]:flex lg:hidden absolute bottom-12 right-12 z-30 w-10 h-10 max-[960px]:w-14 max-[960px]:h-14 flex items-center justify-center rounded-lg border border-white/10 bg-neutral-900/80 text-white shadow-2xl backdrop-blur transition hover:border-white/30 hover:bg-neutral-800"
+          className="max-[960px]:flex hidden lg:hidden absolute bottom-14 right-10 z-30 w-10 h-10 max-[960px]:w-14 max-[960px]:h-14 flex items-center justify-center rounded-lg border border-white/10 bg-neutral-900/80 text-white shadow-2xl backdrop-blur transition hover:border-white/30 hover:bg-neutral-800"
           title="Open Menu"
         >
           <Menu size={18} className="flex-shrink-0 max-[960px]:w-6 max-[960px]:h-6" />
@@ -756,7 +756,7 @@ const App: React.FC = () => {
       {/* Sidebar Controls */}
       {showUI && (
         <div
-          className={`sidebar-scrollbar absolute top-0 left-0 h-screen w-80 pointer-events-auto flex flex-col gap-8 overflow-y-auto z-10 bg-neutral-900/70 backdrop-blur-2xl max-[960px]:pb-12 max-[960px]:transition-transform max-[960px]:duration-300 max-[960px]:ease-in-out ${
+          className={`sidebar-scrollbar absolute top-0 left-0 h-screen w-80 pointer-events-auto flex flex-col gap-8 overflow-y-auto z-10 bg-neutral-900/70 backdrop-blur-2xl max-[960px]:pt-6 max-[960px]:pb-12 max-[960px]:transition-transform max-[960px]:duration-300 max-[960px]:ease-in-out ${
             drawerOpen ? 'max-[960px]:translate-x-0' : 'max-[960px]:-translate-x-full'
           } lg:translate-x-0`}
           style={{
@@ -974,7 +974,7 @@ const App: React.FC = () => {
       )}
 
       {showUI && !drawerOpen && (
-      <div className="absolute bottom-20 max-[960px]:bottom-14 max-[960px]:right-32 right-5 text-right block pointer-events-none z-10 opacity-40 group hover:opacity-100 transition-opacity duration-500">
+      <div className="absolute bottom-20 max-[960px]:bottom-16 max-[960px]:right-28 right-5 text-right block pointer-events-none z-10 opacity-40 group hover:opacity-100 transition-opacity duration-500">
         <div className="text-[10px] max-[960px]:text-sm text-neutral-400 font-mono tracking-widest space-y-1">
           <p className="font-bold" style={{ color: accentColor }}>PARTICLE BOUNCE HOUSE</p>
           <p>JOHN LEONARD 2025</p>
