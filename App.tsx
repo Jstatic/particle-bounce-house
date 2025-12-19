@@ -4,7 +4,7 @@ import { Canvas, useFrame, ThreeElements } from '@react-three/fiber';
 import { OrbitControls, PerspectiveCamera, Environment, ContactShadows } from '@react-three/drei';
 import * as THREE from 'three';
 import { SphereData } from './types';
-import { ArrowUpDown, Eye, EyeOff, Menu, X } from 'lucide-react';
+import { ArrowUpDown, Eye, EyeOff, Menu } from 'lucide-react';
 
 // Properly augment the JSX namespace to include React Three Fiber elements.
 // This ensures that tags like <mesh>, <group>, <sphereGeometry>, etc., are recognized.
@@ -738,22 +738,19 @@ const App: React.FC = () => {
       {showUI && !drawerOpen && (
         <button
           onClick={() => setDrawerOpen(true)}
-          className="max-[960px]:flex lg:hidden absolute top-8 right-5 z-30 w-10 h-10 max-[960px]:w-14 max-[960px]:h-14 flex items-center justify-center rounded-lg border border-white/10 bg-neutral-900/80 text-white shadow-2xl backdrop-blur transition hover:border-white/30 hover:bg-neutral-800"
+          className="max-[960px]:flex lg:hidden absolute bottom-12 left-12 z-30 w-10 h-10 max-[960px]:w-14 max-[960px]:h-14 flex items-center justify-center rounded-lg border border-white/10 bg-neutral-900/80 text-white shadow-2xl backdrop-blur transition hover:border-white/30 hover:bg-neutral-800"
           title="Open Menu"
         >
           <Menu size={18} className="flex-shrink-0 max-[960px]:w-6 max-[960px]:h-6" />
         </button>
       )}
 
-      {/* Close Button - Mobile Only (Upper Right) */}
+      {/* Overlay - Mobile Only (closes drawer when tapping outside) */}
       {showUI && drawerOpen && (
-        <button
+        <div
           onClick={() => setDrawerOpen(false)}
-          className="max-[960px]:flex lg:hidden absolute top-8 right-5 z-30 w-10 h-10 max-[960px]:w-14 max-[960px]:h-14 flex items-center justify-center rounded-lg border border-white/10 bg-neutral-900/80 text-white shadow-2xl backdrop-blur transition hover:border-white/30 hover:bg-neutral-800"
-          title="Close Menu"
-        >
-          <X size={18} className="flex-shrink-0 max-[960px]:w-6 max-[960px]:h-6" />
-        </button>
+          className="max-[960px]:block lg:hidden fixed inset-0 z-[5] pointer-events-auto"
+        />
       )}
 
       {/* Sidebar Controls */}
@@ -977,7 +974,7 @@ const App: React.FC = () => {
       )}
 
       {showUI && !drawerOpen && (
-      <div className="absolute bottom-20 max-[960px]:bottom-28 right-5 text-right block pointer-events-none z-10 opacity-40 group hover:opacity-100 transition-opacity duration-500">
+      <div className="absolute bottom-20 max-[960px]:bottom-14 right-5 max-[960px]:left-1/2 max-[960px]:-translate-x-1/2 max-[960px]:right-auto text-right max-[960px]:text-center block pointer-events-none z-10 opacity-40 group hover:opacity-100 transition-opacity duration-500">
         <div className="text-[10px] max-[960px]:text-sm text-neutral-400 font-mono tracking-widest space-y-1">
           <p className="font-bold" style={{ color: accentColor }}>PARTICLE BOUNCE HOUSE</p>
           <p>JOHN LEONARD 2025</p>
@@ -988,7 +985,7 @@ const App: React.FC = () => {
       {/* UI Visibility Toggle */}
       <button
         onClick={() => setShowUI(!showUI)}
-        className="absolute bottom-5 max-[960px]:bottom-12 right-4 z-20 w-10 h-10 max-[960px]:w-14 max-[960px]:h-14 flex items-center justify-center rounded-lg border border-white/10 bg-neutral-900/80 text-white shadow-2xl backdrop-blur transition hover:border-white/30 hover:bg-neutral-800"
+        className="absolute bottom-5 max-[960px]:bottom-12 right-4 max-[960px]:right-12 z-20 w-10 h-10 max-[960px]:w-14 max-[960px]:h-14 flex items-center justify-center rounded-lg border border-white/10 bg-neutral-900/80 text-white shadow-2xl backdrop-blur transition hover:border-white/30 hover:bg-neutral-800"
         title={showUI ? "Hide UI" : "Show UI"}
       >
         {showUI ? <EyeOff size={18} className="max-[960px]:w-6 max-[960px]:h-6" /> : <Eye size={18} className="max-[960px]:w-6 max-[960px]:h-6" />}
