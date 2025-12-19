@@ -411,7 +411,7 @@ const BezierEditor: React.FC<{
   return (
     <div className="mt-8 relative bg-black/40 rounded-2xl p-5 border border-white/5 overflow-visible select-none shadow-inner">
       <div className="flex justify-between items-center mb-4">
-        <label className="text-[10px] uppercase font-bold tracking-widest text-neutral-500">Falloff Curve</label>
+        <label className="text-[10px] max-[960px]:text-sm uppercase font-bold tracking-widest text-neutral-500">Falloff Curve</label>
       </div>
       <div className="relative group">
         <svg
@@ -464,7 +464,7 @@ const BezierEditor: React.FC<{
           <circle cx={p2x * 100} cy={(1 - p2y) * 100} r="12" fill="transparent" className="cursor-grab" onPointerDown={(e) => { e.stopPropagation(); setActiveHandle(2); }} />
         </svg>
       </div>
-      <div className="flex justify-between mt-4 text-[8px] font-mono text-neutral-600 uppercase tracking-widest px-1">
+      <div className="flex justify-between mt-4 text-[8px] max-[960px]:text-xs font-mono text-neutral-600 uppercase tracking-widest px-1">
         <div className="flex flex-col">
           <span>{isReversed ? 'MAX' : 'MIN'} EDGE</span>
           <span className="text-neutral-500">{isReversed ? maxScale.toFixed(1) : minScale.toFixed(1)}x</span>
@@ -518,8 +518,8 @@ const ColorPicker: React.FC<{
   return (
     <div className="space-y-4">
       <div className="flex justify-between items-center">
-        <label className="text-[10px] uppercase font-bold text-neutral-500 tracking-wider">Color</label>
-        <span className="text-[10px] font-mono px-2 py-0.5 rounded border" style={{ color: accentColor, background: accentSoft, borderColor: accentBorder }}>
+        <label className="text-[10px] max-[960px]:text-sm uppercase font-bold text-neutral-500 tracking-wider">Color</label>
+        <span className="text-[10px] max-[960px]:text-sm font-mono px-2 py-0.5 rounded border" style={{ color: accentColor, background: accentSoft, borderColor: accentBorder }}>
           {hue.toFixed(0)}° · {(saturation * 100).toFixed(0)}% · {(value * 100).toFixed(0)}%
         </span>
       </div>
@@ -586,9 +586,9 @@ const ScaleRangeSlider: React.FC<{
   return (
     <div className="mt-8 mb-6 px-1">
       <div className="flex justify-between items-center mb-5">
-        <label className="text-[10px] uppercase font-bold tracking-wider text-neutral-500">Sphere Size</label>
-          <div className="text-[10px] font-mono bg-neutral-900/50 px-2 py-0.5 rounded border border-white/5 text-neutral-400">
-          <span style={{ color: accentColor }}>{minVal.toFixed(2)}x</span> <span className="mx-1 opacity-30">—</span> <span style={{ color: accentColor }}>{maxVal.toFixed(2)}x</span>
+        <label className="text-[10px] max-[960px]:text-sm uppercase font-bold tracking-wider text-neutral-500">Sphere Size</label>
+          <div className="text-[10px] max-[960px]:text-sm font-mono bg-neutral-900/50 px-2 py-0.5 rounded border border-white/5 text-neutral-400">
+          <span style={{ color: accentColor }}>{minVal.toFixed(2)}x</span> <span className="opacity-30">–</span> <span style={{ color: accentColor }}>{maxVal.toFixed(2)}x</span>
         </div>
       </div>
       <div className="relative h-8 flex items-center">
@@ -738,10 +738,10 @@ const App: React.FC = () => {
       {showUI && !drawerOpen && (
         <button
           onClick={() => setDrawerOpen(true)}
-          className="max-[960px]:flex lg:hidden absolute top-8 right-5 z-30 w-10 h-10 flex items-center justify-center rounded-lg border border-white/10 bg-neutral-900/80 text-white shadow-2xl backdrop-blur transition hover:border-white/30 hover:bg-neutral-800"
+          className="max-[960px]:flex lg:hidden absolute top-8 right-5 z-30 w-10 h-10 max-[960px]:w-14 max-[960px]:h-14 flex items-center justify-center rounded-lg border border-white/10 bg-neutral-900/80 text-white shadow-2xl backdrop-blur transition hover:border-white/30 hover:bg-neutral-800"
           title="Open Menu"
         >
-          <Menu size={18} className="flex-shrink-0" />
+          <Menu size={18} className="flex-shrink-0 max-[960px]:w-6 max-[960px]:h-6" />
         </button>
       )}
 
@@ -749,10 +749,10 @@ const App: React.FC = () => {
       {showUI && drawerOpen && (
         <button
           onClick={() => setDrawerOpen(false)}
-          className="max-[960px]:flex lg:hidden absolute top-8 right-5 z-30 w-10 h-10 flex items-center justify-center rounded-lg border border-white/10 bg-neutral-900/80 text-white shadow-2xl backdrop-blur transition hover:border-white/30 hover:bg-neutral-800"
+          className="max-[960px]:flex lg:hidden absolute top-8 right-5 z-30 w-10 h-10 max-[960px]:w-14 max-[960px]:h-14 flex items-center justify-center rounded-lg border border-white/10 bg-neutral-900/80 text-white shadow-2xl backdrop-blur transition hover:border-white/30 hover:bg-neutral-800"
           title="Close Menu"
         >
-          <X size={18} className="flex-shrink-0" />
+          <X size={18} className="flex-shrink-0 max-[960px]:w-6 max-[960px]:h-6" />
         </button>
       )}
 
@@ -772,8 +772,8 @@ const App: React.FC = () => {
           <div className="pointer-events-auto p-7 shadow-2xl transition-all rounded-none">
             <div className="group space-y-4 mb-8">
               <div className="flex justify-between items-center">
-                <label className="text-[10px] uppercase font-bold text-neutral-500 tracking-wider">Engine Velocity</label>
-                <span className="text-[10px] font-mono px-2 py-0.5 rounded border" style={{ color: accentColor, background: accentSoft, borderColor: accentBorder }}>{speed.toFixed(1)}x</span>
+                <label className="text-[10px] max-[960px]:text-sm uppercase font-bold text-neutral-500 tracking-wider">Engine Velocity</label>
+                <span className="text-[10px] max-[960px]:text-sm font-mono px-2 py-0.5 rounded border" style={{ color: accentColor, background: accentSoft, borderColor: accentBorder }}>{speed.toFixed(1)}x</span>
               </div>
               <input 
                 type="range" min="0.1" max="8.0" step="0.1" value={speed} 
@@ -786,14 +786,14 @@ const App: React.FC = () => {
 
             <div className="group space-y-4 mb-8">
               <div className="flex justify-between items-center">
-                <label className="text-[10px] uppercase font-bold text-neutral-500 tracking-wider">Engine Centers</label>
+                <label className="text-[10px] max-[960px]:text-sm uppercase font-bold text-neutral-500 tracking-wider">Engine Centers</label>
               </div>
               <div className="flex gap-2">
                 {[1, 2, 3].map(val => (
                   <button
                     key={val}
                     onClick={() => setEngineCenters(val)}
-                    className="flex-1 py-2 text-[11px] font-bold uppercase tracking-wider rounded-lg border transition-all bg-neutral-800 text-neutral-400 border-white/10 hover:text-white hover:border-white/30"
+                    className="flex-1 py-2 text-[11px] max-[960px]:text-base font-bold uppercase tracking-wider rounded-lg border transition-all bg-neutral-800 text-neutral-400 border-white/10 hover:text-white hover:border-white/30"
                     style={engineCenters === val ? { background: accentColor, color: '#fff', borderColor: accentBorder, boxShadow: accentShadow } : undefined}
                   >
                     {val}
@@ -804,8 +804,8 @@ const App: React.FC = () => {
 
             <div className="group space-y-4 mb-8">
               <div className="flex justify-between items-center">
-                <label className="text-[10px] uppercase font-bold text-neutral-500 tracking-wider">Engine Randomness</label>
-                <span className="text-[10px] font-mono px-2 py-0.5 rounded border" style={{ color: accentColor, background: accentSoft, borderColor: accentBorder }}>{engineRandomness.toFixed(0)}%</span>
+                <label className="text-[10px] max-[960px]:text-sm uppercase font-bold text-neutral-500 tracking-wider">Engine Randomness</label>
+                <span className="text-[10px] max-[960px]:text-sm font-mono px-2 py-0.5 rounded border" style={{ color: accentColor, background: accentSoft, borderColor: accentBorder }}>{engineRandomness.toFixed(0)}%</span>
               </div>
               <input 
                 type="range" min="0" max="100" step="1" value={engineRandomness} 
@@ -825,8 +825,8 @@ const App: React.FC = () => {
 
             <div className="group space-y-4 mb-8">
               <div className="flex justify-between items-center">
-                <label className="text-[10px] uppercase font-bold text-neutral-500 tracking-wider">Bounds Area</label>
-                <span className="text-[10px] font-mono px-2 py-0.5 rounded border" style={{ color: accentColor, background: accentSoft, borderColor: accentBorder }}>
+                <label className="text-[10px] max-[960px]:text-sm uppercase font-bold text-neutral-500 tracking-wider">Bounds Area</label>
+                <span className="text-[10px] max-[960px]:text-sm font-mono px-2 py-0.5 rounded border" style={{ color: accentColor, background: accentSoft, borderColor: accentBorder }}>
                   {boundScale.toFixed(1)}x
                 </span>
               </div>
@@ -871,8 +871,8 @@ const App: React.FC = () => {
             <div className="space-y-4 mt-8 max-[960px]:block lg:hidden">
               <div className="space-y-3">
                 <div className="flex items-center justify-between gap-4">
-                  <span className="text-[10px] uppercase font-bold tracking-wider text-neutral-400">Ambient</span>
-                  <span className="text-[10px] font-mono px-2 py-0.5 rounded border" style={{ color: accentColor, background: accentSoft, borderColor: accentBorder }}>
+                  <span className="text-[10px] max-[960px]:text-sm uppercase font-bold tracking-wider text-neutral-400">Ambient</span>
+                  <span className="text-[10px] max-[960px]:text-sm font-mono px-2 py-0.5 rounded border" style={{ color: accentColor, background: accentSoft, borderColor: accentBorder }}>
                     {ambientIntensity.toFixed(2)}
                   </span>
                 </div>
@@ -890,8 +890,8 @@ const App: React.FC = () => {
 
               <div className="space-y-3">
                 <div className="flex items-center justify-between gap-4">
-                  <span className="text-[10px] uppercase font-bold tracking-wider text-neutral-400">Atmospheric Density</span>
-                  <span className="text-[10px] font-mono px-2 py-0.5 rounded border" style={{ color: accentColor, background: accentSoft, borderColor: accentBorder }}>{opacity.toFixed(2)}</span>
+                  <span className="text-[10px] max-[960px]:text-sm uppercase font-bold tracking-wider text-neutral-400">Atmospheric Density</span>
+                  <span className="text-[10px] max-[960px]:text-sm font-mono px-2 py-0.5 rounded border" style={{ color: accentColor, background: accentSoft, borderColor: accentBorder }}>{opacity.toFixed(2)}</span>
                 </div>
                 <input 
                   type="range" min="0" max="1" step="0.01" value={opacity} 
@@ -903,8 +903,8 @@ const App: React.FC = () => {
 
               <div className="space-y-3">
                 <div className="flex items-center justify-between gap-4">
-                  <span className="text-[10px] uppercase font-bold tracking-wider text-neutral-400">Sphere Resolution</span>
-                  <span className="text-[10px] font-mono px-2 py-0.5 rounded border" style={{ color: accentColor, background: accentSoft, borderColor: accentBorder }}>{sphereSegments}</span>
+                  <span className="text-[10px] max-[960px]:text-sm uppercase font-bold tracking-wider text-neutral-400">Sphere Resolution</span>
+                  <span className="text-[10px] max-[960px]:text-sm font-mono px-2 py-0.5 rounded border" style={{ color: accentColor, background: accentSoft, borderColor: accentBorder }}>{sphereSegments}</span>
                 </div>
                 <input
                   type="range"
@@ -927,8 +927,8 @@ const App: React.FC = () => {
       <div className="absolute top-4 right-4 pointer-events-auto z-10 bg-neutral-900/80 border border-white/10 rounded-xl px-4 py-4 shadow-2xl backdrop-blur space-y-4 w-72 max-[960px]:hidden">
         <div className="space-y-3">
           <div className="flex items-center justify-between gap-4">
-            <span className="text-[10px] uppercase font-bold tracking-wider text-neutral-400">Ambient</span>
-            <span className="text-[10px] font-mono px-2 py-0.5 rounded border" style={{ color: accentColor, background: accentSoft, borderColor: accentBorder }}>
+            <span className="text-[10px] max-[960px]:text-sm uppercase font-bold tracking-wider text-neutral-400">Ambient</span>
+            <span className="text-[10px] max-[960px]:text-sm font-mono px-2 py-0.5 rounded border" style={{ color: accentColor, background: accentSoft, borderColor: accentBorder }}>
               {ambientIntensity.toFixed(2)}
             </span>
           </div>
@@ -946,8 +946,8 @@ const App: React.FC = () => {
 
         <div className="space-y-3">
           <div className="flex items-center justify-between gap-4">
-            <span className="text-[10px] uppercase font-bold tracking-wider text-neutral-400">Atmospheric Density</span>
-            <span className="text-[10px] font-mono px-2 py-0.5 rounded border" style={{ color: accentColor, background: accentSoft, borderColor: accentBorder }}>{opacity.toFixed(2)}</span>
+            <span className="text-[10px] max-[960px]:text-sm uppercase font-bold tracking-wider text-neutral-400">Atmospheric Density</span>
+            <span className="text-[10px] max-[960px]:text-sm font-mono px-2 py-0.5 rounded border" style={{ color: accentColor, background: accentSoft, borderColor: accentBorder }}>{opacity.toFixed(2)}</span>
           </div>
           <input 
             type="range" min="0" max="1" step="0.01" value={opacity} 
@@ -959,8 +959,8 @@ const App: React.FC = () => {
 
         <div className="space-y-3">
           <div className="flex items-center justify-between gap-4">
-            <span className="text-[10px] uppercase font-bold tracking-wider text-neutral-400">Sphere Resolution</span>
-            <span className="text-[10px] font-mono px-2 py-0.5 rounded border" style={{ color: accentColor, background: accentSoft, borderColor: accentBorder }}>{sphereSegments}</span>
+            <span className="text-[10px] max-[960px]:text-sm uppercase font-bold tracking-wider text-neutral-400">Sphere Resolution</span>
+            <span className="text-[10px] max-[960px]:text-sm font-mono px-2 py-0.5 rounded border" style={{ color: accentColor, background: accentSoft, borderColor: accentBorder }}>{sphereSegments}</span>
           </div>
           <input
             type="range"
@@ -976,9 +976,9 @@ const App: React.FC = () => {
       </div>
       )}
 
-      {showUI && (
+      {showUI && !drawerOpen && (
       <div className="absolute bottom-20 max-[960px]:bottom-28 right-5 text-right block pointer-events-none z-10 opacity-40 group hover:opacity-100 transition-opacity duration-500">
-        <div className="text-[10px] text-neutral-400 font-mono tracking-widest space-y-1">
+        <div className="text-[10px] max-[960px]:text-sm text-neutral-400 font-mono tracking-widest space-y-1">
           <p className="font-bold" style={{ color: accentColor }}>PARTICLE BOUNCE HOUSE</p>
           <p>JOHN LEONARD 2025</p>
         </div>
@@ -988,10 +988,10 @@ const App: React.FC = () => {
       {/* UI Visibility Toggle */}
       <button
         onClick={() => setShowUI(!showUI)}
-        className="absolute bottom-5 max-[960px]:bottom-12 right-4 z-20 w-10 h-10 flex items-center justify-center rounded-lg border border-white/10 bg-neutral-900/80 text-white shadow-2xl backdrop-blur transition hover:border-white/30 hover:bg-neutral-800"
+        className="absolute bottom-5 max-[960px]:bottom-12 right-4 z-20 w-10 h-10 max-[960px]:w-14 max-[960px]:h-14 flex items-center justify-center rounded-lg border border-white/10 bg-neutral-900/80 text-white shadow-2xl backdrop-blur transition hover:border-white/30 hover:bg-neutral-800"
         title={showUI ? "Hide UI" : "Show UI"}
       >
-        {showUI ? <EyeOff size={18} /> : <Eye size={18} />}
+        {showUI ? <EyeOff size={18} className="max-[960px]:w-6 max-[960px]:h-6" /> : <Eye size={18} className="max-[960px]:w-6 max-[960px]:h-6" />}
       </button>
     </div>
   );
