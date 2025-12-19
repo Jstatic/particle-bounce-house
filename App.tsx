@@ -738,7 +738,7 @@ const App: React.FC = () => {
       {showUI && !drawerOpen && (
         <button
           onClick={() => setDrawerOpen(true)}
-          className="max-[960px]:flex hidden lg:hidden absolute bottom-12 right-10 z-30 w-10 h-10 max-[960px]:w-12 max-[960px]:h-12 flex items-center justify-center rounded-lg border border-white/10 bg-neutral-900/80 text-white shadow-2xl backdrop-blur transition hover:border-white/30 hover:bg-neutral-800"
+          className="max-[960px]:flex hidden lg:hidden absolute bottom-10 right-12 z-30 w-10 h-10 max-[960px]:w-12 max-[960px]:h-12 flex items-center justify-center rounded-lg border border-white/10 bg-neutral-900/80 text-white shadow-2xl backdrop-blur transition hover:border-white/30 hover:bg-neutral-800"
           title="Open Menu"
         >
           <Menu size={18} className="flex-shrink-0 max-[960px]:w-6 max-[960px]:h-6" />
@@ -974,7 +974,7 @@ const App: React.FC = () => {
       )}
 
       {showUI && !drawerOpen && (
-      <div className="absolute bottom-20 max-[960px]:bottom-12 max-[960px]:right-28 right-5 text-right block pointer-events-none z-10 opacity-40 group hover:opacity-100 transition-opacity duration-500">
+      <div className="absolute bottom-20 max-[960px]:bottom-10 max-[960px]:right-28 right-5 text-right block pointer-events-none z-10 opacity-40 group hover:opacity-100 transition-opacity duration-500">
         <div className="text-[10px] max-[960px]:text-sm text-neutral-400 font-mono tracking-widest space-y-1">
           <p className="font-bold" style={{ color: accentColor }}>PARTICLE BOUNCE HOUSE</p>
           <p>JOHN LEONARD 2025</p>
