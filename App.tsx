@@ -704,7 +704,7 @@ const App: React.FC = () => {
           background: hsla(${hue}deg, 10%, 20%, 0.1);
         }
       `}</style>
-      <Canvas className="w-full h-full" shadows dpr={[1, 1.5]} style={{ transform: 'translateX(100px)' }}>
+      <Canvas className="w-full h-full" shadows dpr={[1, 1.5]}>
         <PerspectiveCamera makeDefault position={[20, 20, 20]} />
         <OrbitControls
           makeDefault
