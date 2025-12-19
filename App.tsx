@@ -377,6 +377,7 @@ const BezierEditor: React.FC<{
 
   const handlePointerMove = (e: React.PointerEvent) => {
     if (activeHandle === null || !svgRef.current) return;
+    e.preventDefault();
     const rect = svgRef.current.getBoundingClientRect();
     const rawX = clamp01((e.clientX - rect.left) / rect.width);
     const y = 1 - clamp01((e.clientY - rect.top) / rect.height);
@@ -418,10 +419,12 @@ const BezierEditor: React.FC<{
           ref={svgRef}
           viewBox="-10 0 120 100"
           preserveAspectRatio="xMidYMid meet"
-          className="w-[calc(100%+24px)] -mx-3 h-40 cursor-crosshair touch-none overflow-visible"
-          onPointerMove={handlePointerMove}
+          className="w-[calc(100%+24px)] -mx-3 h-40 max-[960px]:h-48 cursor-crosshair touch-none overflow-visible"
+          style={{ touchAction: 'none' }}
+          onPointerMove={(e) => { if (activeHandle !== null) handlePointerMove(e); }}
           onPointerUp={handlePointerUp}
           onPointerLeave={handlePointerUp}
+          onPointerCancel={handlePointerUp}
         >
           {/* Grid lines */}
           <line x1="0" y1="50" x2="100" y2="50" stroke="rgba(255,255,255,0.05)" strokeWidth="0.5" />
@@ -446,22 +449,20 @@ const BezierEditor: React.FC<{
             fill="#ffffff"
             stroke={accentColor}
             strokeWidth="1"
-            className="cursor-grab active:cursor-grabbing transition-colors duration-200 shadow-xl"
-            onPointerDown={(e) => { e.stopPropagation(); setActiveHandle(1); }}
+            className="cursor-grab active:cursor-grabbing transition-colors duration-200 shadow-xl pointer-events-none"
           />
-          {/* Invisible hit area for handle 1 */}
-          <circle cx={p1x * 100} cy={(1 - p1y) * 100} r="12" fill="transparent" className="cursor-grab" onPointerDown={(e) => { e.stopPropagation(); setActiveHandle(1); }} />
+          {/* Invisible hit area for handle 1 - larger on mobile (r="20" = 20px touch target) */}
+          <circle cx={p1x * 100} cy={(1 - p1y) * 100} r="20" fill="transparent" className="cursor-grab touch-none" style={{ touchAction: 'none' }} onPointerDown={(e) => { e.stopPropagation(); e.preventDefault(); setActiveHandle(1); }} />
 
           <circle
             cx={p2x * 100} cy={(1 - p2y) * 100} r="5"
             fill="#ffffff"
             stroke={accentColor}
             strokeWidth="1"
-            className="cursor-grab active:cursor-grabbing transition-colors duration-200 shadow-xl"
-            onPointerDown={(e) => { e.stopPropagation(); setActiveHandle(2); }}
+            className="cursor-grab active:cursor-grabbing transition-colors duration-200 shadow-xl pointer-events-none"
           />
-          {/* Invisible hit area for handle 2 */}
-          <circle cx={p2x * 100} cy={(1 - p2y) * 100} r="12" fill="transparent" className="cursor-grab" onPointerDown={(e) => { e.stopPropagation(); setActiveHandle(2); }} />
+          {/* Invisible hit area for handle 2 - larger on mobile (r="20" = 20px touch target) */}
+          <circle cx={p2x * 100} cy={(1 - p2y) * 100} r="20" fill="transparent" className="cursor-grab touch-none" style={{ touchAction: 'none' }} onPointerDown={(e) => { e.stopPropagation(); e.preventDefault(); setActiveHandle(2); }} />
         </svg>
       </div>
       <div className="flex justify-between mt-4 text-[8px] max-[960px]:text-xs font-mono text-neutral-600 uppercase tracking-widest px-1">
@@ -527,17 +528,18 @@ const ColorPicker: React.FC<{
       <div
         ref={svRef}
         onPointerDown={(e) => { e.preventDefault(); updateSV(e); }}
-        onPointerMove={(e) => { if (e.buttons === 1) updateSV(e); }}
-        className="relative h-64 rounded-[1rem] overflow-hidden shadow-inner cursor-crosshair select-none"
+        onPointerMove={(e) => { if (e.buttons === 1 || e.pointerType === 'touch') updateSV(e); }}
+        className="relative h-64 max-[960px]:h-72 rounded-[1rem] overflow-hidden shadow-inner cursor-crosshair select-none touch-none"
         style={{
           backgroundImage: `
             linear-gradient(0deg, #000, rgba(0,0,0,0)),
             linear-gradient(90deg, #fff, hsl(${hue}deg, 100%, 50%))
           `,
+          touchAction: 'none',
         }}
       >
         <div
-          className="absolute w-6 h-6 rounded-full border-4 border-white shadow-lg -translate-x-1/2 -translate-y-1/2"
+          className="absolute w-6 h-6 max-[960px]:w-8 max-[960px]:h-8 rounded-full border-4 max-[960px]:border-[5px] border-white shadow-lg -translate-x-1/2 -translate-y-1/2"
           style={svHandleStyle}
         />
       </div>
@@ -545,14 +547,15 @@ const ColorPicker: React.FC<{
       <div
         ref={hueRef}
         onPointerDown={(e) => { e.preventDefault(); updateHue(e); }}
-        onPointerMove={(e) => { if (e.buttons === 1) updateHue(e); }}
-        className="relative h-6 rounded-full overflow-hidden shadow-inner cursor-pointer select-none"
+        onPointerMove={(e) => { if (e.buttons === 1 || e.pointerType === 'touch') updateHue(e); }}
+        className="relative h-6 max-[960px]:h-8 rounded-full overflow-hidden shadow-inner cursor-pointer select-none touch-none"
         style={{
           backgroundImage: 'linear-gradient(90deg, #ff0000, #ffff00, #00ff00, #00ffff, #0000ff, #ff00ff, #ff0000)',
+          touchAction: 'none',
         }}
       >
         <div
-          className="absolute w-6 h-6 rounded-full border-4 border-white shadow-lg -translate-x-1/2 top-1/2 -translate-y-1/2"
+          className="absolute w-6 h-6 max-[960px]:w-8 max-[960px]:h-8 rounded-full border-4 max-[960px]:border-[5px] border-white shadow-lg -translate-x-1/2 top-1/2 -translate-y-1/2"
           style={hueHandleStyle}
         />
       </div>
@@ -591,23 +594,23 @@ const ScaleRangeSlider: React.FC<{
           <span style={{ color: accentColor }}>{minVal.toFixed(2)}x</span> <span className="opacity-30">–</span> <span style={{ color: accentColor }}>{maxVal.toFixed(2)}x</span>
         </div>
       </div>
-      <div className="relative h-8 flex items-center">
-        <div className="absolute w-full h-2 bg-neutral-800 rounded-full" />
+      <div className="relative h-8 max-[960px]:h-12 flex items-center">
+        <div className="absolute w-full h-2 max-[960px]:h-3 bg-neutral-800 rounded-full" />
         <div 
-          className="absolute h-2 rounded-full" 
+          className="absolute h-2 max-[960px]:h-3 rounded-full" 
           style={{ left: `${minPercent}%`, width: `${maxPercent - minPercent}%`, background: accentColor, boxShadow: accentShadow }}
         />
         <input
           type="range" min={min} max={max} step="0.01" value={minVal}
           onChange={handleMinChange}
-          className="absolute w-full pointer-events-none appearance-none bg-transparent [&::-webkit-slider-thumb]:pointer-events-auto [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-5 [&::-webkit-slider-thumb]:h-5 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-white [&::-webkit-slider-thumb]:cursor-pointer [&::-webkit-slider-thumb]:shadow-lg"
-          style={{ accentColor }}
+          className="absolute w-full pointer-events-none appearance-none bg-transparent touch-none [&::-webkit-slider-thumb]:pointer-events-auto [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-5 [&::-webkit-slider-thumb]:h-5 max-[960px]:[&::-webkit-slider-thumb]:w-7 max-[960px]:[&::-webkit-slider-thumb]:h-7 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-white [&::-webkit-slider-thumb]:cursor-pointer [&::-webkit-slider-thumb]:shadow-lg"
+          style={{ accentColor, touchAction: 'none' }}
         />
         <input
           type="range" min={min} max={max} step="0.01" value={maxVal}
           onChange={handleMaxChange}
-          className="absolute w-full pointer-events-none appearance-none bg-transparent [&::-webkit-slider-thumb]:pointer-events-auto [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-5 [&::-webkit-slider-thumb]:h-5 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-white [&::-webkit-slider-thumb]:cursor-pointer [&::-webkit-slider-thumb]:shadow-lg"
-          style={{ accentColor }}
+          className="absolute w-full pointer-events-none appearance-none bg-transparent touch-none [&::-webkit-slider-thumb]:pointer-events-auto [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-5 [&::-webkit-slider-thumb]:h-5 max-[960px]:[&::-webkit-slider-thumb]:w-7 max-[960px]:[&::-webkit-slider-thumb]:h-7 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-white [&::-webkit-slider-thumb]:cursor-pointer [&::-webkit-slider-thumb]:shadow-lg"
+          style={{ accentColor, touchAction: 'none' }}
         />
       </div>
     </div>
@@ -775,8 +778,8 @@ const App: React.FC = () => {
               <input 
                 type="range" min="0.1" max="8.0" step="0.1" value={speed} 
                 onChange={(e) => setSpeed(parseFloat(e.target.value))}
-                className="w-full h-2 bg-neutral-800 rounded-lg appearance-none cursor-pointer disabled:opacity-30 transition-all"
-                style={{ accentColor }}
+                className="w-full h-2 max-[960px]:h-4 bg-neutral-800 rounded-lg appearance-none cursor-pointer disabled:opacity-30 transition-all touch-none [&::-webkit-slider-thumb]:pointer-events-auto [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-5 [&::-webkit-slider-thumb]:h-5 max-[960px]:[&::-webkit-slider-thumb]:w-7 max-[960px]:[&::-webkit-slider-thumb]:h-7 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-white [&::-webkit-slider-thumb]:cursor-pointer [&::-webkit-slider-thumb]:shadow-lg"
+                style={{ accentColor, touchAction: 'none' }}
                 disabled={!isDynamic}
               />
             </div>
@@ -790,7 +793,7 @@ const App: React.FC = () => {
                   <button
                     key={val}
                     onClick={() => setEngineCenters(val)}
-                    className="flex-1 py-2 text-[11px] max-[960px]:text-base font-bold uppercase tracking-wider rounded-lg border transition-all bg-neutral-800 text-neutral-400 border-white/10 hover:text-white hover:border-white/30"
+                    className="flex-1 py-2 max-[960px]:py-3 text-[11px] max-[960px]:text-base font-bold uppercase tracking-wider rounded-lg border transition-all bg-neutral-800 text-neutral-400 border-white/10 hover:text-white hover:border-white/30 active:scale-95"
                     style={engineCenters === val ? { background: accentColor, color: '#fff', borderColor: accentBorder, boxShadow: accentShadow } : undefined}
                   >
                     {val}
@@ -807,8 +810,8 @@ const App: React.FC = () => {
               <input 
                 type="range" min="0" max="100" step="1" value={engineRandomness} 
                 onChange={(e) => setEngineRandomness(parseInt(e.target.value, 10))}
-                className="w-full h-2 bg-neutral-800 rounded-lg appearance-none cursor-pointer disabled:opacity-30 transition-all"
-                style={{ accentColor }}
+                className="w-full h-2 max-[960px]:h-4 bg-neutral-800 rounded-lg appearance-none cursor-pointer disabled:opacity-30 transition-all touch-none [&::-webkit-slider-thumb]:pointer-events-auto [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-5 [&::-webkit-slider-thumb]:h-5 max-[960px]:[&::-webkit-slider-thumb]:w-7 max-[960px]:[&::-webkit-slider-thumb]:h-7 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-white [&::-webkit-slider-thumb]:cursor-pointer [&::-webkit-slider-thumb]:shadow-lg"
+                style={{ accentColor, touchAction: 'none' }}
               />
             </div>
 
@@ -834,8 +837,8 @@ const App: React.FC = () => {
                 step="0.05"
                 value={boundScale}
                 onChange={(e) => setBoundScale(parseFloat(e.target.value))}
-                className="w-full h-2 bg-neutral-800 rounded-lg appearance-none cursor-pointer disabled:opacity-30 transition-all"
-                style={{ accentColor }}
+                className="w-full h-2 max-[960px]:h-4 bg-neutral-800 rounded-lg appearance-none cursor-pointer disabled:opacity-30 transition-all touch-none [&::-webkit-slider-thumb]:pointer-events-auto [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-5 [&::-webkit-slider-thumb]:h-5 max-[960px]:[&::-webkit-slider-thumb]:w-7 max-[960px]:[&::-webkit-slider-thumb]:h-7 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-white [&::-webkit-slider-thumb]:cursor-pointer [&::-webkit-slider-thumb]:shadow-lg"
+                style={{ accentColor, touchAction: 'none' }}
               />
             </div>
 
@@ -880,8 +883,8 @@ const App: React.FC = () => {
                   step="0.01"
                   value={ambientIntensity}
                   onChange={(e) => setAmbientIntensity(parseFloat(e.target.value))}
-                  className="w-full h-2 bg-neutral-800 rounded-lg appearance-none cursor-pointer"
-                  style={{ accentColor }}
+                  className="w-full h-2 max-[960px]:h-4 bg-neutral-800 rounded-lg appearance-none cursor-pointer touch-none [&::-webkit-slider-thumb]:pointer-events-auto [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-5 [&::-webkit-slider-thumb]:h-5 max-[960px]:[&::-webkit-slider-thumb]:w-7 max-[960px]:[&::-webkit-slider-thumb]:h-7 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-white [&::-webkit-slider-thumb]:cursor-pointer [&::-webkit-slider-thumb]:shadow-lg"
+                  style={{ accentColor, touchAction: 'none' }}
                 />
               </div>
 
@@ -893,8 +896,8 @@ const App: React.FC = () => {
                 <input 
                   type="range" min="0" max="1" step="0.01" value={opacity} 
                   onChange={(e) => setOpacity(parseFloat(e.target.value))}
-                  className="w-full h-2 bg-neutral-800 rounded-lg appearance-none cursor-pointer transition-all"
-                  style={{ accentColor }}
+                  className="w-full h-2 max-[960px]:h-4 bg-neutral-800 rounded-lg appearance-none cursor-pointer transition-all touch-none [&::-webkit-slider-thumb]:pointer-events-auto [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-5 [&::-webkit-slider-thumb]:h-5 max-[960px]:[&::-webkit-slider-thumb]:w-7 max-[960px]:[&::-webkit-slider-thumb]:h-7 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-white [&::-webkit-slider-thumb]:cursor-pointer [&::-webkit-slider-thumb]:shadow-lg"
+                  style={{ accentColor, touchAction: 'none' }}
                 />
               </div>
 
@@ -910,8 +913,8 @@ const App: React.FC = () => {
                   step="2"
                   value={sphereSegments}
                   onChange={(e) => setSphereSegments(parseInt(e.target.value, 10))}
-                  className="w-full h-2 bg-neutral-800 rounded-lg appearance-none cursor-pointer transition-all"
-                  style={{ accentColor }}
+                  className="w-full h-2 max-[960px]:h-4 bg-neutral-800 rounded-lg appearance-none cursor-pointer transition-all touch-none [&::-webkit-slider-thumb]:pointer-events-auto [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-5 [&::-webkit-slider-thumb]:h-5 max-[960px]:[&::-webkit-slider-thumb]:w-7 max-[960px]:[&::-webkit-slider-thumb]:h-7 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-white [&::-webkit-slider-thumb]:cursor-pointer [&::-webkit-slider-thumb]:shadow-lg"
+                  style={{ accentColor, touchAction: 'none' }}
                 />
               </div>
             </div>
@@ -936,8 +939,8 @@ const App: React.FC = () => {
             step="0.01"
             value={ambientIntensity}
             onChange={(e) => setAmbientIntensity(parseFloat(e.target.value))}
-            className="w-full h-2 bg-neutral-800 rounded-lg appearance-none cursor-pointer"
-            style={{ accentColor }}
+            className="w-full h-2 bg-neutral-800 rounded-lg appearance-none cursor-pointer touch-none [&::-webkit-slider-thumb]:pointer-events-auto [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-5 [&::-webkit-slider-thumb]:h-5 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-white [&::-webkit-slider-thumb]:cursor-pointer [&::-webkit-slider-thumb]:shadow-lg"
+            style={{ accentColor, touchAction: 'none' }}
           />
         </div>
 
@@ -949,8 +952,8 @@ const App: React.FC = () => {
           <input 
             type="range" min="0" max="1" step="0.01" value={opacity} 
             onChange={(e) => setOpacity(parseFloat(e.target.value))}
-            className="w-full h-2 bg-neutral-800 rounded-lg appearance-none cursor-pointer transition-all"
-            style={{ accentColor }}
+            className="w-full h-2 bg-neutral-800 rounded-lg appearance-none cursor-pointer transition-all touch-none [&::-webkit-slider-thumb]:pointer-events-auto [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-5 [&::-webkit-slider-thumb]:h-5 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-white [&::-webkit-slider-thumb]:cursor-pointer [&::-webkit-slider-thumb]:shadow-lg"
+            style={{ accentColor, touchAction: 'none' }}
           />
         </div>
 
@@ -966,8 +969,8 @@ const App: React.FC = () => {
             step="2"
             value={sphereSegments}
             onChange={(e) => setSphereSegments(parseInt(e.target.value, 10))}
-            className="w-full h-2 bg-neutral-800 rounded-lg appearance-none cursor-pointer transition-all"
-            style={{ accentColor }}
+            className="w-full h-2 bg-neutral-800 rounded-lg appearance-none cursor-pointer transition-all touch-none [&::-webkit-slider-thumb]:pointer-events-auto [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-5 [&::-webkit-slider-thumb]:h-5 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-white [&::-webkit-slider-thumb]:cursor-pointer [&::-webkit-slider-thumb]:shadow-lg"
+            style={{ accentColor, touchAction: 'none' }}
           />
         </div>
       </div>
