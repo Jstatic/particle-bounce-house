@@ -139,12 +139,11 @@ function generateInitialSpheres(spacing: number): SphereData[] {
 
 const BASE_WHITE = new THREE.Color('#ffffff');
 
-type BlendMode = 'normal' | 'additive' | 'multiply';
+type BlendMode = 'normal' | 'additive';
 
 const BLEND_MAP: Record<BlendMode, THREE.Blending> = {
   normal: THREE.NormalBlending,
   additive: THREE.AdditiveBlending,
-  multiply: THREE.MultiplyBlending,
 };
 
 const InstancedSpheres: React.FC<{ 
@@ -859,7 +858,7 @@ const App: React.FC = () => {
                 <label className="text-[10px] max-[960px]:text-sm uppercase font-bold text-neutral-500 tracking-wider">Blend Mode</label>
               </div>
               <div className="flex gap-2">
-                {(['normal', 'additive', 'multiply'] as BlendMode[]).map(mode => (
+                {(['normal', 'additive'] as BlendMode[]).map(mode => (
                   <button
                     key={mode}
                     onClick={() => setBlendMode(mode)}
