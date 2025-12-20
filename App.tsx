@@ -27,6 +27,7 @@ interface SceneConfig {
   minScale: number;
   maxScale: number;
   tintColor: THREE.Color;
+  tintColor2: THREE.Color;
 }
 
 const clamp01 = (v: number) => Math.min(1, Math.max(0, v));
@@ -148,24 +149,35 @@ const InstancedSpheres: React.FC<{
   const meshRef = useRef<THREE.InstancedMesh>(null);
   const materialRef = useRef<THREE.MeshStandardMaterial>(null);
   const dummy = useMemo(() => new THREE.Object3D(), []);
+  const tempColor = useMemo(() => new THREE.Color(), []);
   const positions = useMemo(
     () => baseSpheres.map(s => new THREE.Vector3(...s.position)),
     [baseSpheres]
   );
 
+  // Initialize instance colors
+  React.useEffect(() => {
+    if (meshRef.current) {
+      for (let i = 0; i < baseSpheres.length; i++) {
+        meshRef.current.setColorAt(i, config.tintColor);
+      }
+      if (meshRef.current.instanceColor) {
+        meshRef.current.instanceColor.needsUpdate = true;
+      }
+    }
+  }, [baseSpheres.length, config.tintColor]);
+
   React.useEffect(() => {
     if (materialRef.current) {
-      materialRef.current.color.copy(config.tintColor);
-      materialRef.current.emissive.copy(BASE_WHITE).lerp(config.tintColor, 0.6);
       materialRef.current.opacity = config.opacity;
       materialRef.current.needsUpdate = true;
     }
-  }, [config.tintColor, config.opacity]);
+  }, [config.opacity]);
 
   useFrame(() => {
     if (!meshRef.current || !focalPointsRef.current || focalPointsRef.current.length === 0) return;
 
-    const { maxDist, lut, minScale } = config;
+    const { maxDist, lut, minScale, tintColor, tintColor2 } = config;
     
     for (let i = 0; i < positions.length; i++) {
       const pos = positions[i];
@@ -184,8 +196,15 @@ const InstancedSpheres: React.FC<{
       dummy.scale.setScalar(finalScale);
       dummy.updateMatrix();
       meshRef.current.setMatrixAt(i, dummy.matrix);
+
+      // Blend colors based on distance: close to focal = tintColor, far = tintColor2
+      tempColor.copy(tintColor).lerp(tintColor2, t);
+      meshRef.current.setColorAt(i, tempColor);
     }
     meshRef.current.instanceMatrix.needsUpdate = true;
+    if (meshRef.current.instanceColor) {
+      meshRef.current.instanceColor.needsUpdate = true;
+    }
   });
 
   return (
@@ -252,6 +271,7 @@ const SceneContent: React.FC<{
   const weightRef = useRef<number[]>([]);
   const weightTargetRef = useRef<number[]>([]);
   const timeRef = useRef(0);
+  const smoothRandomnessRef = useRef(engineRandomness);
 
   // Ensure we have a phase/weights per engine center (max capped)
   useEffect(() => {
@@ -311,11 +331,18 @@ const SceneContent: React.FC<{
       weightRef.current[i] = THREE.MathUtils.lerp(current, target, 1 - Math.exp(-delta * 6));
     }
 
+    // Smooth randomness transitions to avoid animation jumps
+    smoothRandomnessRef.current = THREE.MathUtils.lerp(
+      smoothRandomnessRef.current,
+      engineRandomness,
+      1 - Math.exp(-delta * 3)
+    );
+
     const baseBound = (GRID_SIZE * INITIAL_SPACING) / 2;
     const bound = baseBound * boundScale;
     const t = timeRef.current;
     const freq = 0.2;
-    const randNorm = engineRandomness / 100;
+    const randNorm = smoothRandomnessRef.current / 100;
 
     const centerCount = Math.min(engineCenters, MAX_ENGINE_CENTERS);
     for (let i = 0; i < centerCount; i++) {
@@ -479,37 +506,21 @@ const BezierEditor: React.FC<{
   );
 };
 
-const ColorPicker: React.FC<{
+const HueSlider: React.FC<{
   hue: number;
-  saturation: number;
-  value: number;
   onHueChange: (h: number) => void;
-  onSaturationValueChange: (s: number, v: number) => void;
+  label: string;
   accentColor: string;
   accentSoft: string;
   accentBorder: string;
-}> = ({ hue, saturation, value, onHueChange, onSaturationValueChange, accentColor, accentSoft, accentBorder }) => {
-  const svRef = useRef<HTMLDivElement>(null);
+}> = ({ hue, onHueChange, label, accentColor, accentSoft, accentBorder }) => {
   const hueRef = useRef<HTMLDivElement>(null);
-
-  const updateSV = (e: React.PointerEvent<HTMLDivElement>) => {
-    if (!svRef.current) return;
-    const rect = svRef.current.getBoundingClientRect();
-    const sat = clamp01((e.clientX - rect.left) / rect.width);
-    const val = clamp01(1 - (e.clientY - rect.top) / rect.height);
-    onSaturationValueChange(sat, val);
-  };
 
   const updateHue = (e: React.PointerEvent<HTMLDivElement>) => {
     if (!hueRef.current) return;
     const rect = hueRef.current.getBoundingClientRect();
     const h = clamp01((e.clientX - rect.left) / rect.width) * 360;
     onHueChange(h);
-  };
-
-  const svHandleStyle = {
-    left: `${saturation * 100}%`,
-    top: `${(1 - value) * 100}%`,
   };
 
   const hueHandleStyle = {
@@ -519,29 +530,10 @@ const ColorPicker: React.FC<{
   return (
     <div className="space-y-4">
       <div className="flex justify-between items-center">
-        <label className="text-[10px] max-[960px]:text-sm uppercase font-bold text-neutral-500 tracking-wider">Color</label>
+        <label className="text-[10px] max-[960px]:text-sm uppercase font-bold text-neutral-500 tracking-wider">{label}</label>
         <span className="text-[10px] max-[960px]:text-sm font-mono px-2 py-0.5 rounded border" style={{ color: accentColor, background: accentSoft, borderColor: accentBorder }}>
-          {hue.toFixed(0)}° · {(saturation * 100).toFixed(0)}% · {(value * 100).toFixed(0)}%
+          {hue.toFixed(0)}°
         </span>
-      </div>
-
-      <div
-        ref={svRef}
-        onPointerDown={(e) => { e.preventDefault(); updateSV(e); }}
-        onPointerMove={(e) => { if (e.buttons === 1 || e.pointerType === 'touch') updateSV(e); }}
-        className="relative h-64 max-[960px]:h-72 rounded-[1rem] overflow-hidden shadow-inner cursor-crosshair select-none touch-none"
-        style={{
-          backgroundImage: `
-            linear-gradient(0deg, #000, rgba(0,0,0,0)),
-            linear-gradient(90deg, #fff, hsl(${hue}deg, 100%, 50%))
-          `,
-          touchAction: 'none',
-        }}
-      >
-        <div
-          className="absolute w-6 h-6 max-[960px]:w-8 max-[960px]:h-8 rounded-full border-4 max-[960px]:border-[5px] border-white shadow-lg -translate-x-1/2 -translate-y-1/2"
-          style={svHandleStyle}
-        />
       </div>
 
       <div
@@ -629,8 +621,7 @@ const App: React.FC = () => {
   const [minScale, setMinScale] = useState(0.03);
   const [maxScale, setMaxScale] = useState(2.0);
   const [hue, setHue] = useState(220); // degrees
-  const [saturation, setSaturation] = useState(0.75); // 0-1 (X axis)
-  const [value, setValue] = useState(0.65); // 0-1 (Y axis, brightness)
+  const [hue2, setHue2] = useState(340); // degrees - secondary color for distance blend
   const [sphereSegments, setSphereSegments] = useState(16);
   const [engineCenters, setEngineCenters] = useState(1);
   const [engineRandomness, setEngineRandomness] = useState(0);
@@ -646,9 +637,14 @@ const App: React.FC = () => {
   const [p2y, setP2y] = useState(0.2);
 
   const tintColor = useMemo(() => {
-    const { r, g, b } = hsvToRgb(hue / 360, clamp01(saturation), clamp01(value));
+    const { r, g, b } = hsvToRgb(hue / 360, 1, 1);
     return new THREE.Color(r, g, b);
-  }, [hue, saturation, value]);
+  }, [hue]);
+
+  const tintColor2 = useMemo(() => {
+    const { r, g, b } = hsvToRgb(hue2 / 360, 1, 1);
+    return new THREE.Color(r, g, b);
+  }, [hue2]);
 
   const accentColor = useMemo(() => `hsl(${hue}deg, 80%, 60%)`, [hue]);
   const accentSoft = useMemo(() => `hsla(${hue}deg, 80%, 60%, 0.1)`, [hue]);
@@ -688,7 +684,7 @@ const App: React.FC = () => {
     [p1x, p1y, p2x, p2y, isReversed, minScale, maxScale]
   );
 
-  const config: SceneConfig = { maxDist, opacity, lut, minScale, maxScale, tintColor };
+  const config: SceneConfig = { maxDist, opacity, lut, minScale, maxScale, tintColor, tintColor2 };
 
   return (
     <div 
@@ -821,18 +817,26 @@ const App: React.FC = () => {
               />
             </div>
 
-            <div className="space-y-8 mt-10 mb-8">
-              <div className="pb-6">
-                <ColorPicker 
-                  hue={hue}
-                  saturation={saturation}
-                  value={value}
-                  onHueChange={setHue}
-                  onSaturationValueChange={(s, v) => { setSaturation(s); setValue(v); }}
-                  accentColor={accentColor}
-                  accentSoft={accentSoft}
-                  accentBorder={accentBorder}
+            <div className="space-y-6 mt-10 mb-8">
+              <HueSlider 
+                hue={hue}
+                onHueChange={setHue}
+                label="Center Hue"
+                accentColor={accentColor}
+                accentSoft={accentSoft}
+                accentBorder={accentBorder}
+              />
+
+              <div className="pt-4 border-t border-white/5">
+                <HueSlider 
+                  hue={hue2}
+                  onHueChange={setHue2}
+                  label="Distance Hue"
+                  accentColor={`hsl(${hue2}deg, 80%, 60%)`}
+                  accentSoft={`hsla(${hue2}deg, 80%, 60%, 0.1)`}
+                  accentBorder={`hsla(${hue2}deg, 80%, 60%, 0.2)`}
                 />
+                <p className="text-[9px] max-[960px]:text-xs text-neutral-600 mt-3 uppercase tracking-wide">Spheres blend from center hue to this hue based on distance</p>
               </div>
             </div>
 
