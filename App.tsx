@@ -139,13 +139,22 @@ function generateInitialSpheres(spacing: number): SphereData[] {
 
 const BASE_WHITE = new THREE.Color('#ffffff');
 
+type BlendMode = 'normal' | 'additive' | 'multiply';
+
+const BLEND_MAP: Record<BlendMode, THREE.Blending> = {
+  normal: THREE.NormalBlending,
+  additive: THREE.AdditiveBlending,
+  multiply: THREE.MultiplyBlending,
+};
+
 const InstancedSpheres: React.FC<{ 
   baseSpheres: SphereData[];
   focalPointsRef: React.RefObject<THREE.Vector3[]>;
   weightRef: React.RefObject<number[]>;
   config: SceneConfig;
   sphereSegments: number;
-}> = ({ baseSpheres, focalPointsRef, weightRef, config, sphereSegments }) => {
+  blendMode: BlendMode;
+}> = ({ baseSpheres, focalPointsRef, weightRef, config, sphereSegments, blendMode }) => {
   const meshRef = useRef<THREE.InstancedMesh>(null);
   const materialRef = useRef<THREE.MeshStandardMaterial>(null);
   const dummy = useMemo(() => new THREE.Object3D(), []);
@@ -224,6 +233,8 @@ const InstancedSpheres: React.FC<{
         metalness={0.2} 
         transparent
         opacity={config.opacity}
+        blending={BLEND_MAP[blendMode]}
+        depthWrite={blendMode === 'normal'}
       />
     </instancedMesh>
   );
@@ -266,7 +277,8 @@ const SceneContent: React.FC<{
   focalPointsRef: React.RefObject<THREE.Vector3[]>;
   showFocalPoint: boolean;
   boundScale: number;
-}> = ({ isDynamic, speed, engineCenters, engineRandomness, sphereSegments, baseSpheres, config, focalPointsRef, showFocalPoint, boundScale }) => {
+  blendMode: BlendMode;
+}> = ({ isDynamic, speed, engineCenters, engineRandomness, sphereSegments, baseSpheres, config, focalPointsRef, showFocalPoint, boundScale, blendMode }) => {
   const phaseRef = useRef<{ px: number; py: number; pz: number; amp: THREE.Vector3; freq: THREE.Vector3 }[]>([]);
   const weightRef = useRef<number[]>([]);
   const weightTargetRef = useRef<number[]>([]);
@@ -378,7 +390,8 @@ const SceneContent: React.FC<{
         focalPointsRef={focalPointsRef} 
         weightRef={weightRef}
         config={config}
-        sphereSegments={sphereSegments} 
+        sphereSegments={sphereSegments}
+        blendMode={blendMode}
       />
     </group>
   );
@@ -626,7 +639,8 @@ const App: React.FC = () => {
   const [engineCenters, setEngineCenters] = useState(1);
   const [engineRandomness, setEngineRandomness] = useState(0);
   const [boundScale, setBoundScale] = useState(2);
-  const [ambientIntensity, setAmbientIntensity] = useState(0.5);
+  const [blendMode, setBlendMode] = useState<BlendMode>('normal');
+  const [ambientIntensity, setAmbientIntensity] = useState(1);
   const [showUI, setShowUI] = useState(true);
   const [drawerOpen, setDrawerOpen] = useState(false);
 
@@ -733,6 +747,7 @@ const App: React.FC = () => {
           focalPointsRef={focalPointsRef}
           showFocalPoint={showFocalPoint}
           boundScale={boundScale}
+          blendMode={blendMode}
         />
 
         <ContactShadows position={[0, -GRID_SIZE * 0.8, 0]} opacity={0.4} scale={GRID_SIZE * 4} blur={2.8} far={GRID_SIZE * 2} />
@@ -836,7 +851,24 @@ const App: React.FC = () => {
                   accentSoft={`hsla(${hue2}deg, 80%, 60%, 0.1)`}
                   accentBorder={`hsla(${hue2}deg, 80%, 60%, 0.2)`}
                 />
-                <p className="text-[9px] max-[960px]:text-xs text-neutral-600 mt-3 uppercase tracking-wide">Spheres blend from center hue to this hue based on distance</p>
+              </div>
+            </div>
+
+            <div className="group space-y-4 mb-8">
+              <div className="flex justify-between items-center">
+                <label className="text-[10px] max-[960px]:text-sm uppercase font-bold text-neutral-500 tracking-wider">Blend Mode</label>
+              </div>
+              <div className="flex gap-2">
+                {(['normal', 'additive', 'multiply'] as BlendMode[]).map(mode => (
+                  <button
+                    key={mode}
+                    onClick={() => setBlendMode(mode)}
+                    className="flex-1 py-2 max-[960px]:py-3 text-[11px] max-[960px]:text-base font-bold uppercase tracking-wider rounded-lg border transition-all bg-neutral-800 text-neutral-400 border-white/10 hover:text-white hover:border-white/30 active:scale-95"
+                    style={blendMode === mode ? { background: accentColor, color: '#fff', borderColor: accentBorder, boxShadow: accentShadow } : undefined}
+                  >
+                    {mode}
+                  </button>
+                ))}
               </div>
             </div>
 
