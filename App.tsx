@@ -662,6 +662,25 @@ const App: React.FC = () => {
   const [ambientIntensity, setAmbientIntensity] = useState(1);
   const [showUI, setShowUI] = useState(true);
   const [drawerOpen, setDrawerOpen] = useState(false);
+  
+  // Camera position - zoom out more on small screens
+  const [cameraDistance] = useState(() => {
+    if (typeof window !== 'undefined') {
+      if (window.innerWidth < 600) {
+        return 64; // Zoomed out more for very small screens
+      }
+      if (window.innerWidth < 960) {
+        return 32; // Zoomed out for mobile
+      }
+    }
+    return 20; // Default for desktop
+  });
+  
+  // Track if initial mount is complete to prevent sidebar animation on load
+  const [hasMounted, setHasMounted] = useState(false);
+  useEffect(() => {
+    setHasMounted(true);
+  }, []);
 
   // Bezier Controls
   const [p1x, setP1x] = useState(0.33);
@@ -743,7 +762,7 @@ const App: React.FC = () => {
         }
       `}</style>
       <Canvas className="w-full h-full" shadows dpr={[1, 1.5]}>
-        <PerspectiveCamera makeDefault position={[20, 20, 20]} />
+        <PerspectiveCamera makeDefault position={[cameraDistance, cameraDistance, cameraDistance]} />
         <OrbitControls
           makeDefault
           target={[0, 0, 0]}
@@ -795,7 +814,9 @@ const App: React.FC = () => {
       {/* Sidebar Controls */}
       {showUI && (
         <div
-          className={`sidebar-scrollbar absolute top-0 left-0 h-screen w-80 pointer-events-auto flex flex-col gap-8 overflow-y-auto z-10 bg-neutral-900/70 backdrop-blur-2xl max-[960px]:pt-6 max-[960px]:pb-12 max-[960px]:transition-transform max-[960px]:duration-300 max-[960px]:ease-in-out ${
+          className={`sidebar-scrollbar absolute top-0 left-0 h-screen w-80 pointer-events-auto flex flex-col gap-8 overflow-y-auto z-10 bg-neutral-900/70 backdrop-blur-2xl max-[960px]:pt-6 max-[960px]:pb-12 ${
+            hasMounted ? 'max-[960px]:transition-transform max-[960px]:duration-300 max-[960px]:ease-in-out' : ''
+          } ${
             drawerOpen ? 'max-[960px]:translate-x-0' : 'max-[960px]:-translate-x-full'
           } lg:translate-x-0`}
           style={{
@@ -1041,7 +1062,7 @@ const App: React.FC = () => {
       {showUI && !drawerOpen && (
       <div className="absolute bottom-6 max-[960px]:bottom-20 max-[960px]:right-28 right-16 text-right block pointer-events-none z-10 opacity-40 group hover:opacity-100 transition-opacity duration-500">
         <div className="text-[10px] max-[960px]:text-sm text-neutral-400 font-mono tracking-widest space-y-1">
-          <p className="font-bold" style={{ color: accentColor }}>PARTICLE BOUNCE HOUSE</p>
+          <p className="font-bold" style={{ color: '#fafafa' }}>PARTICLE BOUNCE HOUSE</p>
           <p>JOHN LEONARD 2025</p>
         </div>
       </div>
