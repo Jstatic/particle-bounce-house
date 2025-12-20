@@ -667,7 +667,7 @@ const App: React.FC = () => {
   const [cameraDistance] = useState(() => {
     if (typeof window !== 'undefined') {
       if (window.innerWidth < 600) {
-        return 64; // Zoomed out more for very small screens
+        return 42; // Zoomed out more for very small screens
       }
       if (window.innerWidth < 960) {
         return 32; // Zoomed out for mobile
