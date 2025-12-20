@@ -101,13 +101,12 @@ const generateScaleLUT = (
   p1y: number,
   p2x: number,
   p2y: number,
-  isReversed: boolean,
+  startY: number,
+  endY: number,
   minScale: number,
   maxScale: number
 ) => {
   const lut = new Float32Array(LUT_SIZE);
-  const startY = isReversed ? 0 : 1;
-  const endY = isReversed ? 1 : 0;
   
   for (let i = 0; i < LUT_SIZE; i++) {
     const t = i / (LUT_SIZE - 1);
@@ -404,13 +403,15 @@ const BezierEditor: React.FC<{
   p1y: number;
   p2x: number;
   p2y: number;
+  startY: number;
+  endY: number;
   onChange: (p1x: number, p1y: number, p2x: number, p2y: number) => void;
-  isReversed: boolean;
+  onAnchorChange: (startY: number, endY: number) => void;
   minScale: number;
   maxScale: number;
   accentColor: string;
   accentBorder: string;
-}> = ({ p1x, p1y, p2x, p2y, onChange, isReversed, minScale, maxScale, accentColor, accentBorder }) => {
+}> = ({ p1x, p1y, p2x, p2y, startY, endY, onChange, onAnchorChange, minScale, maxScale, accentColor, accentBorder }) => {
   const svgRef = useRef<SVGSVGElement>(null);
   const [activeHandle, setActiveHandle] = useState<number | null>(null);
 
@@ -429,13 +430,16 @@ const BezierEditor: React.FC<{
     } else if (activeHandle === 2) {
       const x = Math.min(1 - minEdge, Math.max(p1x + gap, rawX));
       onChange(p1x, p1y, x, y);
+    } else if (activeHandle === 0) {
+      // Start anchor - only Y moves
+      onAnchorChange(y, endY);
+    } else if (activeHandle === 3) {
+      // End anchor - only Y moves
+      onAnchorChange(startY, y);
     }
   };
 
   const handlePointerUp = () => setActiveHandle(null);
-
-  const startY = isReversed ? 0 : 1;
-  const endY = isReversed ? 1 : 0;
   
   const path = useMemo(() => {
     const steps = 30;
@@ -446,7 +450,7 @@ const BezierEditor: React.FC<{
       d += ` L ${t * 100},${(1 - y) * 100}`;
     }
     return d;
-  }, [p1x, p1y, p2x, p2y, isReversed, startY, endY]);
+  }, [p1x, p1y, p2x, p2y, startY, endY]);
 
   return (
     <div className="mt-8 relative bg-black/40 rounded-2xl p-5 border border-white/5 overflow-visible select-none shadow-inner">
@@ -458,7 +462,7 @@ const BezierEditor: React.FC<{
           ref={svgRef}
           viewBox="0 0 100 100"
           preserveAspectRatio="xMidYMid meet"
-          className="w-full -mx-3 h-40 max-[960px]:h-48 cursor-crosshair touch-none overflow-visible"
+          className="w-full -mx-[-3px] h-[190px] max-[960px]:h-[222px] cursor-crosshair touch-none overflow-visible"
           style={{ touchAction: 'none' }}
           onPointerMove={(e) => { if (activeHandle !== null) handlePointerMove(e); }}
           onPointerUp={handlePointerUp}
@@ -478,9 +482,24 @@ const BezierEditor: React.FC<{
           {/* Bezier Path */}
           <path d={path} fill="none" stroke={accentColor} strokeWidth="3" strokeLinecap="round" />
 
-          {/* Anchors */}
-          <circle cx="0" cy={(1 - startY) * 100} r="2.5" fill={accentColor} />
-          <circle cx="100" cy={(1 - endY) * 100} r="2.5" fill={accentColor} />
+          {/* Draggable Anchors */}
+          <circle
+            cx="0" cy={(1 - startY) * 100} r="5"
+            fill="#ffffff"
+            stroke={accentColor}
+            strokeWidth="1"
+            className="cursor-grab active:cursor-grabbing transition-colors duration-200 shadow-xl pointer-events-none"
+          />
+          <circle cx="0" cy={(1 - startY) * 100} r="20" fill="transparent" className="cursor-grab touch-none" style={{ touchAction: 'none' }} onPointerDown={(e) => { e.stopPropagation(); e.preventDefault(); setActiveHandle(0); }} />
+          
+          <circle
+            cx="100" cy={(1 - endY) * 100} r="5"
+            fill="#ffffff"
+            stroke={accentColor}
+            strokeWidth="1"
+            className="cursor-grab active:cursor-grabbing transition-colors duration-200 shadow-xl pointer-events-none"
+          />
+          <circle cx="100" cy={(1 - endY) * 100} r="20" fill="transparent" className="cursor-grab touch-none" style={{ touchAction: 'none' }} onPointerDown={(e) => { e.stopPropagation(); e.preventDefault(); setActiveHandle(3); }} />
 
           {/* Interactive Handles */}
           <circle
@@ -506,12 +525,12 @@ const BezierEditor: React.FC<{
       </div>
       <div className="flex justify-between mt-4 text-[8px] max-[960px]:text-xs font-mono text-neutral-600 uppercase tracking-widest px-1">
         <div className="flex flex-col">
-          <span>{isReversed ? 'MAX' : 'MIN'} EDGE</span>
-          <span className="text-neutral-500">{isReversed ? maxScale.toFixed(1) : minScale.toFixed(1)}x</span>
+          <span>CENTER</span>
+          <span className="text-neutral-500">{(minScale + startY * (maxScale - minScale)).toFixed(2)}x</span>
         </div>
         <div className="flex flex-col text-right">
-          <span>CENTER IMPACT</span>
-          <span className="text-neutral-500">{isReversed ? minScale.toFixed(1) : maxScale.toFixed(1)}x</span>
+          <span>EDGE</span>
+          <span className="text-neutral-500">{(minScale + endY * (maxScale - minScale)).toFixed(2)}x</span>
         </div>
       </div>
     </div>
@@ -624,7 +643,8 @@ const ScaleRangeSlider: React.FC<{
 const App: React.FC = () => {
   const [baseSpheres, setBaseSpheres] = useState<SphereData[]>(() => generateInitialSpheres(INITIAL_SPACING));
   const [opacity, setOpacity] = useState(0.5);
-  const [isReversed, setIsReversed] = useState(false);
+  const [curveStartY, setCurveStartY] = useState(1);
+  const [curveEndY, setCurveEndY] = useState(0);
   const [isDynamic, setIsDynamic] = useState(true);
   const [speed, setSpeed] = useState(3.0);
   const [showFocalPoint, setShowFocalPoint] = useState(false);
@@ -693,8 +713,8 @@ const App: React.FC = () => {
   }, []);
 
   const lut = useMemo(
-    () => generateScaleLUT(p1x, p1y, p2x, p2y, isReversed, minScale, maxScale),
-    [p1x, p1y, p2x, p2y, isReversed, minScale, maxScale]
+    () => generateScaleLUT(p1x, p1y, p2x, p2y, curveStartY, curveEndY, minScale, maxScale),
+    [p1x, p1y, p2x, p2y, curveStartY, curveEndY, minScale, maxScale]
   );
 
   const config: SceneConfig = { maxDist, opacity, lut, minScale, maxScale, tintColor, tintColor2 };
@@ -899,9 +919,10 @@ const App: React.FC = () => {
             </div>
 
             <BezierEditor 
-              p1x={p1x} p1y={p1y} p2x={p2x} p2y={p2y} 
-              onChange={(x1, y1, x2, y2) => { setP1x(x1); setP1y(y1); setP2x(x2); setP2y(y2); }} 
-              isReversed={isReversed} 
+              p1x={p1x} p1y={p1y} p2x={p2x} p2y={p2y}
+              startY={curveStartY} endY={curveEndY}
+              onChange={(x1, y1, x2, y2) => { setP1x(x1); setP1y(y1); setP2x(x2); setP2y(y2); }}
+              onAnchorChange={(sY, eY) => { setCurveStartY(sY); setCurveEndY(eY); }}
               minScale={minScale}
               maxScale={maxScale}
               accentColor={accentColor}
