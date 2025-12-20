@@ -417,9 +417,9 @@ const BezierEditor: React.FC<{
       <div className="relative group">
         <svg
           ref={svgRef}
-          viewBox="-10 0 120 100"
+          viewBox="0 0 100 100"
           preserveAspectRatio="xMidYMid meet"
-          className="w-[calc(100%+24px)] -mx-3 h-40 max-[960px]:h-48 cursor-crosshair touch-none overflow-visible"
+          className="w-full -mx-3 h-40 max-[960px]:h-48 cursor-crosshair touch-none overflow-visible"
           style={{ touchAction: 'none' }}
           onPointerMove={(e) => { if (activeHandle !== null) handlePointerMove(e); }}
           onPointerUp={handlePointerUp}
@@ -747,7 +747,7 @@ const App: React.FC = () => {
       {showUI && !drawerOpen && (
         <button
           onClick={() => setDrawerOpen(true)}
-          className="max-[960px]:flex hidden lg:hidden absolute bottom-14 right-12 z-30 w-10 h-10 max-[960px]:w-12 max-[960px]:h-12 flex items-center justify-center rounded-lg border border-white/10 bg-neutral-900/80 text-white shadow-2xl backdrop-blur transition hover:border-white/30 hover:bg-neutral-800"
+          className="max-[960px]:flex hidden lg:hidden absolute bottom-20 right-12 z-30 w-10 h-10 max-[960px]:w-12 max-[960px]:h-12 flex items-center justify-center rounded-lg border border-white/10 bg-neutral-900/80 text-white shadow-2xl backdrop-blur transition hover:border-white/30 hover:bg-neutral-800"
           title="Open Menu"
         >
           <Menu size={18} className="flex-shrink-0 max-[960px]:w-6 max-[960px]:h-6" />
@@ -821,6 +821,21 @@ const App: React.FC = () => {
               />
             </div>
 
+            <div className="space-y-8 mt-10 mb-8">
+              <div className="pb-6">
+                <ColorPicker 
+                  hue={hue}
+                  saturation={saturation}
+                  value={value}
+                  onHueChange={setHue}
+                  onSaturationValueChange={(s, v) => { setSaturation(s); setValue(v); }}
+                  accentColor={accentColor}
+                  accentSoft={accentSoft}
+                  accentBorder={accentBorder}
+                />
+              </div>
+            </div>
+
             <ScaleRangeSlider 
               min={0.01} max={2.0} 
               minVal={minScale} maxVal={maxScale} 
@@ -857,21 +872,6 @@ const App: React.FC = () => {
               accentColor={accentColor}
               accentBorder={accentBorder}
             />
-
-            <div className="space-y-8 mt-10">
-              <div className="pb-6">
-                <ColorPicker 
-                  hue={hue}
-                  saturation={saturation}
-                  value={value}
-                  onHueChange={setHue}
-                  onSaturationValueChange={(s, v) => { setSaturation(s); setValue(v); }}
-                  accentColor={accentColor}
-                  accentSoft={accentSoft}
-                  accentBorder={accentBorder}
-                />
-              </div>
-            </div>
 
             {/* Mobile-only controls (shown on screens < 960px) */}
             <div className="space-y-4 mt-8 max-[960px]:block lg:hidden">
@@ -983,7 +983,7 @@ const App: React.FC = () => {
       )}
 
       {showUI && !drawerOpen && (
-      <div className="absolute bottom-20 max-[960px]:bottom-14 max-[960px]:right-28 right-5 text-right block pointer-events-none z-10 opacity-40 group hover:opacity-100 transition-opacity duration-500">
+      <div className="absolute bottom-6 max-[960px]:bottom-20 max-[960px]:right-28 right-16 text-right block pointer-events-none z-10 opacity-40 group hover:opacity-100 transition-opacity duration-500">
         <div className="text-[10px] max-[960px]:text-sm text-neutral-400 font-mono tracking-widest space-y-1">
           <p className="font-bold" style={{ color: accentColor }}>PARTICLE BOUNCE HOUSE</p>
           <p>JOHN LEONARD 2025</p>
