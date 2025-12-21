@@ -430,6 +430,11 @@ const SceneContent: React.FC<{
     const randNorm = smoothRandomnessRef.current / 100;
 
     const centerCount = Math.min(engineCenters, MAX_ENGINE_CENTERS);
+    const tempVec = new THREE.Vector3();
+    const repulsionStrength = 0.66; // Moderate repulsion strength
+    const minDistance = bound * 0.3; // Minimum distance before repulsion kicks in
+    
+    // First, calculate base positions from sinusoidal motion
     for (let i = 0; i < centerCount; i++) {
       const phase = phaseRef.current[i];
       const freqJitterX = (1.0 + i * 0.1) * THREE.MathUtils.lerp(1, phase.freq.x, randNorm);
@@ -448,6 +453,32 @@ const SceneContent: React.FC<{
         focalPointsRef.current[i] = new THREE.Vector3();
       }
       focalPointsRef.current[i].set(x, y, z);
+    }
+    
+    // Apply repulsion forces between active focal points
+    for (let i = 0; i < centerCount; i++) {
+      if (weightRef.current[i] < 0.05) continue; // Skip inactive centers
+      
+      const pos1 = focalPointsRef.current[i];
+      const repulsionForce = new THREE.Vector3(0, 0, 0);
+      
+      for (let j = 0; j < centerCount; j++) {
+        if (i === j || weightRef.current[j] < 0.05) continue; // Skip self and inactive centers
+        
+        const pos2 = focalPointsRef.current[j];
+        tempVec.subVectors(pos1, pos2);
+        const distance = tempVec.length();
+        
+        if (distance > 0 && distance < minDistance) {
+          // Calculate repulsion force (stronger when closer)
+          const force = repulsionStrength * (1 - distance / minDistance) / distance;
+          tempVec.normalize().multiplyScalar(force * delta * 10);
+          repulsionForce.add(tempVec);
+        }
+      }
+      
+      // Apply repulsion force to position
+      pos1.add(repulsionForce);
     }
   });
 
