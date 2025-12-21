@@ -264,6 +264,78 @@ const FocalPointMarker: React.FC<{ focalPointRef: React.RefObject<THREE.Vector3>
   );
 };
 
+const AdjacentLines: React.FC<{ baseSpheres: SphereData[]; tintColor: THREE.Color; opacity: number }> = ({ baseSpheres, tintColor, opacity }) => {
+  // Create a map of sphere positions by their grid coordinates for quick lookup
+  const sphereMap = useMemo(() => {
+    const map = new Map<string, number>();
+    baseSpheres.forEach((sphere, index) => {
+      // Extract grid coordinates from id: "sphere-x-y-z"
+      const match = sphere.id.match(/sphere-(\d+)-(\d+)-(\d+)/);
+      if (match) {
+        const key = `${match[1]},${match[2]},${match[3]}`;
+        map.set(key, index);
+      }
+    });
+    return map;
+  }, [baseSpheres]);
+
+  // Generate line segments for adjacent spheres
+  const lineGeometry = useMemo(() => {
+    const positions: number[] = [];
+    
+    baseSpheres.forEach((sphere, index) => {
+      const match = sphere.id.match(/sphere-(\d+)-(\d+)-(\d+)/);
+      if (!match) return;
+      
+      const x = parseInt(match[1], 10);
+      const y = parseInt(match[2], 10);
+      const z = parseInt(match[3], 10);
+      
+      // Check adjacent spheres in +x, +y, +z directions to avoid duplicates
+      const neighbors = [
+        [x + 1, y, z], // +x
+        [x, y + 1, z], // +y
+        [x, y, z + 1], // +z
+      ];
+      
+      neighbors.forEach(([nx, ny, nz]) => {
+        const neighborKey = `${nx},${ny},${nz}`;
+        const neighborIndex = sphereMap.get(neighborKey);
+        
+        if (neighborIndex !== undefined) {
+          // Add start position (current sphere)
+          const startPos = baseSpheres[index].position;
+          positions.push(startPos[0], startPos[1], startPos[2]);
+          
+          // Add end position (neighbor sphere)
+          const endPos = baseSpheres[neighborIndex].position;
+          positions.push(endPos[0], endPos[1], endPos[2]);
+        }
+      });
+    });
+    
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+    return geometry;
+  }, [baseSpheres, sphereMap]);
+
+  // Don't render lines when opacity is 0
+  if (opacity <= 0) {
+    return null;
+  }
+
+  return (
+    <lineSegments geometry={lineGeometry}>
+      <lineBasicMaterial 
+        color={tintColor} 
+        transparent 
+        opacity={opacity}
+        depthWrite={false}
+      />
+    </lineSegments>
+  );
+};
+
 const SceneContent: React.FC<{
   isDynamic: boolean;
   speed: number;
@@ -276,7 +348,8 @@ const SceneContent: React.FC<{
   showFocalPoint: boolean;
   boundScale: number;
   blendMode: BlendMode;
-}> = ({ isDynamic, speed, engineCenters, engineRandomness, sphereSegments, baseSpheres, config, focalPointsRef, showFocalPoint, boundScale, blendMode }) => {
+  lineOpacity: number;
+}> = ({ isDynamic, speed, engineCenters, engineRandomness, sphereSegments, baseSpheres, config, focalPointsRef, showFocalPoint, boundScale, blendMode, lineOpacity }) => {
   const phaseRef = useRef<{ px: number; py: number; pz: number; amp: THREE.Vector3; freq: THREE.Vector3 }[]>([]);
   const weightRef = useRef<number[]>([]);
   const weightTargetRef = useRef<number[]>([]);
@@ -383,6 +456,7 @@ const SceneContent: React.FC<{
           <FocalPointMarker key={`fp-${idx}`} focalPointRef={{ current: ref }} visible={true} />
         ) : null
       ))}
+      <AdjacentLines baseSpheres={baseSpheres} tintColor={config.tintColor} opacity={lineOpacity} />
       <InstancedSpheres 
         baseSpheres={baseSpheres} 
         focalPointsRef={focalPointsRef} 
@@ -660,6 +734,7 @@ const App: React.FC = () => {
   const [boundScale, setBoundScale] = useState(2);
   const [blendMode, setBlendMode] = useState<BlendMode>('normal');
   const [ambientIntensity, setAmbientIntensity] = useState(1);
+  const [lineOpacity, setLineOpacity] = useState(0.00);
   const [showUI, setShowUI] = useState(true);
   const [drawerOpen, setDrawerOpen] = useState(false);
   
@@ -771,8 +846,15 @@ const App: React.FC = () => {
           enableDamping
         />
         <ambientLight intensity={ambientIntensity} />
-        <spotLight position={[20, 20, 20]} angle={0.2} penumbra={1} intensity={2} castShadow />
-        <pointLight position={[-20, -20, -20]} intensity={0.5} />
+        {/* Omnidirectional point lights positioned around the scene */}
+        <pointLight position={[20, 20, 20]} intensity={1} />
+        <pointLight position={[-20, 20, 20]} intensity={1} />
+        <pointLight position={[20, -20, 20]} intensity={1} />
+        <pointLight position={[-20, -20, 20]} intensity={1} />
+        <pointLight position={[20, 20, -20]} intensity={1} />
+        <pointLight position={[-20, 20, -20]} intensity={1} />
+        <pointLight position={[20, -20, -20]} intensity={1} />
+        <pointLight position={[-20, -20, -20]} intensity={1} />
         
         <SceneContent 
           isDynamic={isDynamic}
@@ -786,6 +868,7 @@ const App: React.FC = () => {
           showFocalPoint={showFocalPoint}
           boundScale={boundScale}
           blendMode={blendMode}
+          lineOpacity={lineOpacity}
         />
 
         <ContactShadows position={[0, -GRID_SIZE * 0.8, 0]} opacity={0.4} scale={GRID_SIZE * 4} blur={2.8} far={GRID_SIZE * 2} />
@@ -973,7 +1056,7 @@ const App: React.FC = () => {
 
               <div className="space-y-3">
                 <div className="flex items-center justify-between gap-4">
-                  <span className="text-[10px] max-[960px]:text-sm uppercase font-bold tracking-wider text-neutral-400">Atmospheric Density</span>
+                  <span className="text-[10px] max-[960px]:text-sm uppercase font-bold tracking-wider text-neutral-400">Sphere Opacity</span>
                   <span className="text-[10px] max-[960px]:text-sm font-mono px-2 py-0.5 rounded border" style={{ color: accentColor, background: accentSoft, borderColor: accentBorder }}>{opacity.toFixed(2)}</span>
                 </div>
                 <input 
@@ -996,6 +1079,23 @@ const App: React.FC = () => {
                   step="2"
                   value={sphereSegments}
                   onChange={(e) => setSphereSegments(parseInt(e.target.value, 10))}
+                  className="w-full h-2 max-[960px]:h-4 bg-neutral-800 rounded-lg appearance-none cursor-pointer transition-all touch-none [&::-webkit-slider-thumb]:pointer-events-auto [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-5 [&::-webkit-slider-thumb]:h-5 max-[960px]:[&::-webkit-slider-thumb]:w-7 max-[960px]:[&::-webkit-slider-thumb]:h-7 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-white [&::-webkit-slider-thumb]:cursor-pointer [&::-webkit-slider-thumb]:shadow-lg"
+                  style={{ accentColor, touchAction: 'none' }}
+                />
+              </div>
+
+              <div className="space-y-3">
+                <div className="flex items-center justify-between gap-4">
+                  <span className="text-[10px] max-[960px]:text-sm uppercase font-bold tracking-wider text-neutral-400">Line Opacity</span>
+                  <span className="text-[10px] max-[960px]:text-sm font-mono px-2 py-0.5 rounded border" style={{ color: accentColor, background: accentSoft, borderColor: accentBorder }}>{(lineOpacity * 100).toFixed(0)}%</span>
+                </div>
+                <input
+                  type="range"
+                  min="0"
+                  max="0.25"
+                  step="0.01"
+                  value={lineOpacity}
+                  onChange={(e) => setLineOpacity(parseFloat(e.target.value))}
                   className="w-full h-2 max-[960px]:h-4 bg-neutral-800 rounded-lg appearance-none cursor-pointer transition-all touch-none [&::-webkit-slider-thumb]:pointer-events-auto [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-5 [&::-webkit-slider-thumb]:h-5 max-[960px]:[&::-webkit-slider-thumb]:w-7 max-[960px]:[&::-webkit-slider-thumb]:h-7 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-white [&::-webkit-slider-thumb]:cursor-pointer [&::-webkit-slider-thumb]:shadow-lg"
                   style={{ accentColor, touchAction: 'none' }}
                 />
@@ -1029,7 +1129,7 @@ const App: React.FC = () => {
 
         <div className="space-y-3">
           <div className="flex items-center justify-between gap-4">
-            <span className="text-[10px] max-[960px]:text-sm uppercase font-bold tracking-wider text-neutral-400">Atmospheric Density</span>
+            <span className="text-[10px] max-[960px]:text-sm uppercase font-bold tracking-wider text-neutral-400">Sphere Opacity</span>
             <span className="text-[10px] max-[960px]:text-sm font-mono px-2 py-0.5 rounded border" style={{ color: accentColor, background: accentSoft, borderColor: accentBorder }}>{opacity.toFixed(2)}</span>
           </div>
           <input 
@@ -1052,6 +1152,23 @@ const App: React.FC = () => {
             step="2"
             value={sphereSegments}
             onChange={(e) => setSphereSegments(parseInt(e.target.value, 10))}
+            className="w-full h-2 bg-neutral-800 rounded-lg appearance-none cursor-pointer transition-all touch-none [&::-webkit-slider-thumb]:pointer-events-auto [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-5 [&::-webkit-slider-thumb]:h-5 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-white [&::-webkit-slider-thumb]:cursor-pointer [&::-webkit-slider-thumb]:shadow-lg"
+            style={{ accentColor, touchAction: 'none' }}
+          />
+        </div>
+
+        <div className="space-y-3">
+          <div className="flex items-center justify-between gap-4">
+            <span className="text-[10px] max-[960px]:text-sm uppercase font-bold tracking-wider text-neutral-400">Line Opacity</span>
+            <span className="text-[10px] max-[960px]:text-sm font-mono px-2 py-0.5 rounded border" style={{ color: accentColor, background: accentSoft, borderColor: accentBorder }}>{(lineOpacity * 100).toFixed(0)}%</span>
+          </div>
+          <input
+            type="range"
+            min="0"
+            max="0.50"
+            step="0.01"
+            value={lineOpacity}
+            onChange={(e) => setLineOpacity(parseFloat(e.target.value))}
             className="w-full h-2 bg-neutral-800 rounded-lg appearance-none cursor-pointer transition-all touch-none [&::-webkit-slider-thumb]:pointer-events-auto [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-5 [&::-webkit-slider-thumb]:h-5 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-white [&::-webkit-slider-thumb]:cursor-pointer [&::-webkit-slider-thumb]:shadow-lg"
             style={{ accentColor, touchAction: 'none' }}
           />
