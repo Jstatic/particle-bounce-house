@@ -220,6 +220,7 @@ const InstancedSpheres: React.FC<{
       args={[undefined as unknown as THREE.BufferGeometry, undefined as unknown as THREE.Material, baseSpheres.length]}
       castShadow
       receiveShadow
+      renderOrder={1}
     >
       <sphereGeometry args={[1, sphereSegments, sphereSegments]} />
       <meshStandardMaterial 
@@ -325,12 +326,13 @@ const AdjacentLines: React.FC<{ baseSpheres: SphereData[]; tintColor: THREE.Colo
   }
 
   return (
-    <lineSegments geometry={lineGeometry}>
+    <lineSegments geometry={lineGeometry} renderOrder={0}>
       <lineBasicMaterial 
         color={tintColor} 
         transparent 
         opacity={opacity}
         depthWrite={false}
+        depthTest={true}
       />
     </lineSegments>
   );
